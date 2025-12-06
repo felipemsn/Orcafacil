@@ -334,8 +334,8 @@ Exemplo: 1570.THINER 5 LITROS FARBEN"
                                   {match.cinco_porcento_display}
                                 </span>
                                 {match.fallback_applied && (
-                                  <span className="fallback-badge" data-testid={`fallback-badge-${kIndex}-${mIndex}`}>
-                                    Fallback
+                                  <span className="preco-cheio-badge" data-testid={`preco-cheio-badge-${kIndex}-${mIndex}`}>
+                                    Preço Cheio
                                   </span>
                                 )}
                               </td>

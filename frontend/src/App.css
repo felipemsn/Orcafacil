@@ -483,15 +483,17 @@ body {
   font-weight: 700;
 }
 
-.fallback-badge {
-  padding: 0.25rem 0.5rem;
-  background: #fed7aa;
-  color: #92400e;
+/* Preço Cheio badge - displayed in green */
+.preco-cheio-badge {
+  padding: 0.25rem 0.625rem;
+  background: linear-gradient(135deg, #dcfce7 0%, #d1fae5 100%);
+  color: #166534;
   border-radius: 12px;
   font-size: 0.625rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  border: 1px solid #86efac;
 }
 
 .no-results {
