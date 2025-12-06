@@ -14,12 +14,14 @@ ecdsa==0.19.1
 email-validator==2.3.0
 fastapi==0.110.1
 flake8==7.3.0
+fuzzywuzzy==0.18.0
 h11==0.16.0
 idna==3.11
 iniconfig==2.3.0
 isort==7.0.0
 jmespath==1.0.1
 jq==1.10.0
+Levenshtein==0.27.3
 markdown-it-py==4.0.0
 mccabe==0.7.0
 mdurl==0.1.2
@@ -51,9 +53,11 @@ pytest==9.0.1
 python-dateutil==2.9.0.post0
 python-dotenv==1.2.1
 python-jose==3.5.0
+python-Levenshtein==0.27.3
 python-multipart==0.0.20
 pytokens==0.3.0
 pytz==2025.2
+RapidFuzz==3.14.3
 requests==2.32.5
 requests-oauthlib==2.0.0
 rich==14.2.0
