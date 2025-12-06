@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Upload, Search, FileText, TrendingUp, CheckCircle2, XCircle, Database, Info } from "lucide-react";
+import { Upload, Search, FileText, TrendingUp, Star, Info, Database } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -19,9 +19,11 @@ function App() {
   const [uploading, setUploading] = useState(false);
   const [searching, setSearching] = useState(false);
   const [defaultPdfStatus, setDefaultPdfStatus] = useState(null);
+  const [favorites, setFavorites] = useState(new Set());
 
   useEffect(() => {
     fetchDefaultPdfStatus();
+    fetchFavorites();
   }, []);
 
   const fetchDefaultPdfStatus = async () => {
@@ -30,6 +32,15 @@ function App() {
       setDefaultPdfStatus(response.data);
     } catch (error) {
       console.error("Error fetching default PDF status:", error);
+    }
+  };
+
+  const fetchFavorites = async () => {
+    try {
+      const response = await axios.get(`${API}/favorites/list`);
+      setFavorites(new Set(response.data.favorites));
+    } catch (error) {
+      console.error("Error fetching favorites:", error);
     }
   };
 
@@ -79,11 +90,6 @@ function App() {
       return;
     }
 
-    if (lines.length > 15) {
-      toast.error("Máximo de 15 palavras-chave permitidas por consulta");
-      return;
-    }
-
     setSearching(true);
     try {
       const response = await axios.post(`${API}/quotation-batch`, {
@@ -101,6 +107,44 @@ function App() {
     }
   };
 
+  const toggleFavorite = async (itemName, currentlyFavorited) => {
+    try {
+      if (currentlyFavorited) {
+        await axios.delete(`${API}/favorites/remove`, {
+          data: { item_name: itemName }
+        });
+        setFavorites(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(itemName);
+          return newSet;
+        });
+        toast.success("Removido dos favoritos");
+      } else {
+        await axios.post(`${API}/favorites/add`, {
+          item_name: itemName
+        });
+        setFavorites(prev => new Set([...prev, itemName]));
+        toast.success("Adicionado aos favoritos");
+      }
+      
+      // Refresh results to update ordering
+      if (quotations) {
+        handleGetQuotations();
+      }
+    } catch (error) {
+      console.error("Error toggling favorite:", error);
+      toast.error("Erro ao atualizar favorito");
+    }
+  };
+
+  const getColorClass = (color) => {
+    if (color === 'red') return 'value-red';
+    if (color === 'green') return 'value-green';
+    return '';
+  };
+
+  const keywordCount = itemNames.trim().split('\n').filter(line => line.trim()).length;
+
   return (
     <div className="app-container">
       <div className="content-wrapper">
@@ -109,7 +153,7 @@ function App() {
             <FileText size={32} />
           </div>
           <h1 className="header-title">Sistema de Cotação de Preços</h1>
-          <p className="header-subtitle">Busca inteligente com múltiplos resultados • Até 15 palavras-chave • Exibição completa de campos</p>
+          <p className="header-subtitle">Busca ilimitada • Modo exato/parcial • Sistema de favoritos • Destaque de cores</p>
         </header>
 
         {defaultPdfStatus?.has_default && (
@@ -167,21 +211,19 @@ function App() {
             <CardHeader>
               <CardTitle className="card-title">
                 <Search size={20} />
-                Buscar Itens (Múltiplos Resultados)
+                Buscar Itens (Ilimitado)
               </CardTitle>
-              <CardDescription>Digite até 15 palavras-chave (uma por linha) para buscar todos os itens correspondentes</CardDescription>
+              <CardDescription>Digite palavras-chave ou nomes completos (uma por linha)</CardDescription>
             </CardHeader>
             <CardContent className="card-content">
               <div className="search-section">
                 <Label htmlFor="item-names" className="search-label">
-                  Palavras-chave (máx. 15)
+                  Palavras-chave ou Itens Completos
                 </Label>
                 <Textarea
                   id="item-names"
-                  placeholder="Digite uma palavra-chave por linha:
-THINER
-LED
-PERFIL
+                  placeholder="Busca parcial: THINER (retorna todos)
+Busca exata: 1570.THINER 5 LITROS FARBEN (retorna só esse)
 ..."
                   value={itemNames}
                   onChange={(e) => setItemNames(e.target.value)}
@@ -190,7 +232,7 @@ PERFIL
                   data-testid="item-names-textarea"
                 />
                 <div className="item-counter" data-testid="item-counter">
-                  {itemNames.trim().split('\n').filter(line => line.trim()).length} / 15 palavras-chave
+                  {keywordCount} {keywordCount === 1 ? 'palavra-chave' : 'palavras-chave'}
                 </div>
                 <Button
                   onClick={handleGetQuotations}
@@ -211,80 +253,115 @@ PERFIL
               <TrendingUp size={24} />
               <h2>Resultados da Busca</h2>
               <span className="results-summary" data-testid="results-summary">
-                {quotations.total_items_found} itens encontrados para {quotations.total_keywords} palavras-chave
+                {quotations.total_items_found} itens • {quotations.total_keywords} consultas
               </span>
             </div>
 
             <div className="info-banner" data-testid="info-banner">
               <Info size={16} />
-              <span>Todos os itens que contêm as palavras-chave buscadas são exibidos abaixo, agrupados por palavra-chave.</span>
+              <span>
+                <strong>Modo parcial:</strong> retorna todos os itens que contêm a palavra-chave. 
+                <strong> Modo exato:</strong> se o texto for igual a um item completo, retorna apenas esse.
+                <strong> Favoritos:</strong> aparecem primeiro nos resultados.
+              </span>
             </div>
 
-            {quotations.results.map((keywordResult, kIndex) => (
-              <div key={kIndex} className="keyword-group" data-testid={`keyword-group-${kIndex}`}>
-                <div className="keyword-header">
-                  <h3 data-testid={`keyword-${kIndex}`}>
-                    Palavra-chave: <span className="keyword-text">"{keywordResult.keyword}"</span>
-                  </h3>
-                  <span className="matches-count" data-testid={`matches-count-${kIndex}`}>
-                    {keywordResult.total_matches} {keywordResult.total_matches === 1 ? 'resultado' : 'resultados'}
-                  </span>
-                </div>
+            {quotations.results.map((keywordResult, kIndex) => {
+              const favoritesInGroup = keywordResult.matches.filter(m => m.is_favorite).length;
+              
+              return (
+                <div key={kIndex} className="keyword-group" data-testid={`keyword-group-${kIndex}`}>
+                  <div className="keyword-header">
+                    <h3 data-testid={`keyword-${kIndex}`}>
+                      {keywordResult.exact_match_found ? (
+                        <span className="exact-badge">EXATO</span>
+                      ) : (
+                        <span className="partial-badge">PARCIAL</span>
+                      )}
+                      <span className="keyword-text">"{keywordResult.keyword}"</span>
+                    </h3>
+                    <div className="header-badges">
+                      {favoritesInGroup > 0 && (
+                        <span className="favorites-badge" data-testid={`favorites-badge-${kIndex}`}>
+                          <Star size={14} /> {favoritesInGroup} favorito{favoritesInGroup > 1 ? 's' : ''}
+                        </span>
+                      )}
+                      <span className="matches-count" data-testid={`matches-count-${kIndex}`}>
+                        {keywordResult.total_matches} resultado{keywordResult.total_matches !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+                  </div>
 
-                {keywordResult.total_matches > 0 ? (
-                  <div className="results-table-container">
-                    <table className="results-table" data-testid={`results-table-${kIndex}`}>
-                      <thead>
-                        <tr>
-                          <th>Item Encontrado</th>
-                          <th>Valor de Venda</th>
-                          <th>Limite Sistema</th>
-                          <th>Limite Tabela</th>
-                          <th>5% (com fallback)</th>
-                          <th>Score</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {keywordResult.matches.map((match, mIndex) => (
-                          <tr key={mIndex} data-testid={`match-row-${kIndex}-${mIndex}`}>
-                            <td className="item-name" data-testid={`item-name-${kIndex}-${mIndex}`}>
-                              {match.matched_item_name}
-                            </td>
-                            <td className="value-cell" data-testid={`valor-venda-${kIndex}-${mIndex}`}>
-                              {match.valor_venda}
-                            </td>
-                            <td className="value-cell" data-testid={`limite-sistema-${kIndex}-${mIndex}`}>
-                              {match.limite_sistema}
-                            </td>
-                            <td className="value-cell" data-testid={`limite-tabela-${kIndex}-${mIndex}`}>
-                              {match.limite_tabela}
-                            </td>
-                            <td className="cinco-cell" data-testid={`cinco-display-${kIndex}-${mIndex}`}>
-                              <span className={`cinco-value ${match.fallback_applied ? 'fallback' : 'original'}`}>
-                                {match.cinco_porcento_display}
-                              </span>
-                              {match.fallback_applied && (
-                                <span className="fallback-badge" data-testid={`fallback-badge-${kIndex}-${mIndex}`}>
-                                  Fallback
-                                </span>
-                              )}
-                            </td>
-                            <td className="match-score" data-testid={`match-score-${kIndex}-${mIndex}`}>
-                              {match.match_score}%
-                            </td>
+                  {keywordResult.total_matches > 0 ? (
+                    <div className="results-table-container">
+                      <table className="results-table" data-testid={`results-table-${kIndex}`}>
+                        <thead>
+                          <tr>
+                            <th>Fav</th>
+                            <th>Item Encontrado</th>
+                            <th>Valor de Venda</th>
+                            <th>Limite Sistema</th>
+                            <th>Limite Tabela</th>
+                            <th>5% (com fallback)</th>
+                            <th>Score</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <div className="no-results" data-testid={`no-results-${kIndex}`}>
-                    <XCircle size={20} />
-                    <span>Nenhum item encontrado para esta palavra-chave</span>
-                  </div>
-                )}
-              </div>
-            ))}
+                        </thead>
+                        <tbody>
+                          {keywordResult.matches.map((match, mIndex) => (
+                            <tr 
+                              key={mIndex} 
+                              className={match.is_favorite ? 'favorite-row' : ''}
+                              data-testid={`match-row-${kIndex}-${mIndex}`}
+                            >
+                              <td className="favorite-cell">
+                                <button
+                                  onClick={() => toggleFavorite(match.matched_item_name, match.is_favorite)}
+                                  className={`favorite-btn ${match.is_favorite ? 'active' : ''}`}
+                                  data-testid={`favorite-btn-${kIndex}-${mIndex}`}
+                                  title={match.is_favorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+                                >
+                                  <Star size={16} fill={match.is_favorite ? "currentColor" : "none"} />
+                                </button>
+                              </td>
+                              <td className="item-name" data-testid={`item-name-${kIndex}-${mIndex}`}>
+                                {match.matched_item_name}
+                                {match.is_favorite && <span className="fav-tag">★</span>}
+                              </td>
+                              <td className={`value-cell ${getColorClass(match.valor_venda_color)}`} data-testid={`valor-venda-${kIndex}-${mIndex}`}>
+                                {match.valor_venda}
+                              </td>
+                              <td className={`value-cell ${getColorClass(match.limite_sistema_color)}`} data-testid={`limite-sistema-${kIndex}-${mIndex}`}>
+                                {match.limite_sistema}
+                              </td>
+                              <td className={`value-cell ${getColorClass(match.limite_tabela_color)}`} data-testid={`limite-tabela-${kIndex}-${mIndex}`}>
+                                {match.limite_tabela}
+                              </td>
+                              <td className="cinco-cell" data-testid={`cinco-display-${kIndex}-${mIndex}`}>
+                                <span className={`cinco-value ${match.fallback_applied ? 'fallback' : 'original'} ${getColorClass(match.cinco_porcento_color)}`}>
+                                  {match.cinco_porcento_display}
+                                </span>
+                                {match.fallback_applied && (
+                                  <span className="fallback-badge" data-testid={`fallback-badge-${kIndex}-${mIndex}`}>
+                                    Fallback
+                                  </span>
+                                )}
+                              </td>
+                              <td className="match-score" data-testid={`match-score-${kIndex}-${mIndex}`}>
+                                {match.match_score}%
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="no-results" data-testid={`no-results-${kIndex}`}>
+                      <span>Nenhum item encontrado</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

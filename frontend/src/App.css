@@ -272,7 +272,7 @@ body {
 
 .info-banner {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.75rem;
   padding: 1rem 1.25rem;
   background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
@@ -281,11 +281,12 @@ body {
   margin-bottom: 1.5rem;
   color: #1e40af;
   font-size: 0.875rem;
-  font-weight: 500;
+  line-height: 1.6;
 }
 
 .info-banner svg {
   flex-shrink: 0;
+  margin-top: 0.125rem;
 }
 
 .keyword-group {
@@ -311,11 +312,56 @@ body {
   font-weight: 700;
   color: #334155;
   margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.exact-badge {
+  padding: 0.25rem 0.625rem;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  border-radius: 12px;
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.partial-badge {
+  padding: 0.25rem 0.625rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 12px;
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .keyword-text {
   color: #667eea;
   font-weight: 800;
+}
+
+.header-badges {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.favorites-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.75rem;
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  color: #92400e;
+  border-radius: 16px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .matches-count {
@@ -367,16 +413,65 @@ body {
   background: #f8fafc;
 }
 
+.results-table tbody tr.favorite-row {
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 50%, #fffbeb 100%);
+  border-left: 3px solid #f59e0b;
+}
+
+.favorite-cell {
+  width: 50px;
+  text-align: center;
+}
+
+.favorite-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #cbd5e1;
+  padding: 0.25rem;
+  border-radius: 4px;
+  transition: color 0.2s ease, transform 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.favorite-btn:hover {
+  color: #f59e0b;
+  transform: scale(1.2);
+}
+
+.favorite-btn.active {
+  color: #f59e0b;
+}
+
 .item-name {
   font-weight: 600;
   color: #334155;
   max-width: 400px;
+  position: relative;
+}
+
+.fav-tag {
+  margin-left: 0.5rem;
+  color: #f59e0b;
+  font-size: 1rem;
 }
 
 .value-cell {
   font-weight: 600;
   color: #64748b;
   white-space: nowrap;
+}
+
+.value-cell.value-red {
+  color: #dc2626;
+  font-weight: 700;
+}
+
+.value-cell.value-green {
+  color: #16a34a;
+  font-weight: 700;
 }
 
 .cinco-cell {
@@ -399,6 +494,16 @@ body {
 
 .cinco-value.fallback {
   background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
+}
+
+.cinco-value.value-red {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  color: white;
+}
+
+.cinco-value.value-green {
+  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
   color: white;
 }
 
@@ -428,10 +533,6 @@ body {
   background: white;
   color: #64748b;
   font-weight: 600;
-}
-
-.no-results svg {
-  color: #ef4444;
 }
 
 @keyframes fadeInDown {
