@@ -230,37 +230,6 @@ body {
   cursor: not-allowed;
 }
 
-.filter-section {
-  margin-bottom: 2rem;
-  text-align: center;
-  animation: fadeInUp 0.8s ease-out;
-}
-
-.filter-button {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  color: white;
-  font-weight: 600;
-  padding: 0.875rem 1.5rem;
-  border-radius: 8px;
-  border: none;
-  cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-  font-size: 1rem;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.filter-button:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
-}
-
-.filter-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
 .results-section {
   background: white;
   border: 1px solid #e2e8f0;
@@ -269,11 +238,6 @@ body {
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05), 0 10px 20px rgba(0, 0, 0, 0.05);
   animation: slideIn 0.5s ease-out;
   margin-bottom: 2rem;
-}
-
-.green-limit-section {
-  border: 2px solid #10b981;
-  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
 }
 
 .results-header {
@@ -287,10 +251,6 @@ body {
 
 .results-header svg {
   color: #667eea;
-}
-
-.green-limit-section .results-header svg {
-  color: #10b981;
 }
 
 .results-header h2 {
@@ -309,18 +269,6 @@ body {
   font-size: 0.875rem;
   font-weight: 600;
   color: #475569;
-}
-
-.filter-info-banner {
-  padding: 1rem 1.25rem;
-  background: linear-gradient(135deg, #dcfce7 0%, #d1fae5 100%);
-  border: 1px solid #86efac;
-  border-radius: 8px;
-  margin-bottom: 1.5rem;
-  color: #166534;
-  font-size: 0.875rem;
-  line-height: 1.6;
-  text-align: center;
 }
 
 .keyword-group {
@@ -403,10 +351,6 @@ body {
   color: white;
 }
 
-.green-limit-section .results-table thead {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-}
-
 .results-table th {
   padding: 1rem;
   text-align: left;
@@ -414,10 +358,6 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.5px;
   font-size: 0.75rem;
-}
-
-.green-highlight-header {
-  background: linear-gradient(135deg, #6ee7b7 0%, #34d399 100%) !important;
 }
 
 .results-table td {
@@ -500,11 +440,6 @@ body {
   border-radius: 6px;
 }
 
-.green-highlight-cell {
-  font-size: 1rem;
-  font-weight: 800 !important;
-}
-
 .cinco-cell {
   display: flex;
   align-items: center;
@@ -523,7 +458,15 @@ body {
   color: white;
 }
 
-.cinco-value.fallback {
+/* When fallback is applied and Limite Tabela has green color, display in green */
+.cinco-value.fallback-green.value-green {
+  background: linear-gradient(135deg, #dcfce7 0%, #d1fae5 100%);
+  color: #166534;
+  font-weight: 700;
+}
+
+/* When fallback is applied but no specific color, use default fallback orange */
+.cinco-value.fallback-green:not(.value-green):not(.value-yellow) {
   background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
   color: white;
 }

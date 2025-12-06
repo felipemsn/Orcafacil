@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Upload, Search, FileText, TrendingUp, Star, Database, Filter } from "lucide-react";
+import { Upload, Search, FileText, TrendingUp, Star, Database } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -20,8 +20,6 @@ function App() {
   const [searching, setSearching] = useState(false);
   const [defaultPdfStatus, setDefaultPdfStatus] = useState(null);
   const [favorites, setFavorites] = useState(new Set());
-  const [greenLimitItems, setGreenLimitItems] = useState(null);
-  const [loadingGreenLimit, setLoadingGreenLimit] = useState(false);
 
   useEffect(() => {
     fetchDefaultPdfStatus();
@@ -75,7 +73,6 @@ function App() {
       toast.success(`PDF definido como padrão! ${response.data.items_count} itens carregados`);
       await fetchDefaultPdfStatus();
       setQuotations(null);
-      setGreenLimitItems(null);
       setFile(null);
     } catch (error) {
       console.error("Error uploading PDF:", error);
@@ -94,7 +91,6 @@ function App() {
     }
 
     setSearching(true);
-    setGreenLimitItems(null);
     try {
       const response = await axios.post(`${API}/quotation-batch`, {
         item_names: lines,
@@ -108,26 +104,6 @@ function App() {
       setQuotations(null);
     } finally {
       setSearching(false);
-    }
-  };
-
-  const handleShowGreenLimitItems = async () => {
-    setLoadingGreenLimit(true);
-    setQuotations(null);
-    try {
-      const response = await axios.get(`${API}/items-green-limit`);
-      setGreenLimitItems(response.data);
-      
-      if (response.data.total_count === 0) {
-        toast.info("Nenhum item encontrado com 5% vazio e Limite Tabela verde");
-      } else {
-        toast.success(`${response.data.total_count} itens encontrados com Limite Tabela verde`);
-      }
-    } catch (error) {
-      console.error("Error getting green limit items:", error);
-      toast.error(error.response?.data?.detail || "Erro ao buscar itens");
-    } finally {
-      setLoadingGreenLimit(false);
     }
   };
 
@@ -164,6 +140,15 @@ function App() {
     if (color === 'yellow') return 'value-yellow';
     if (color === 'green') return 'value-green';
     return '';
+  };
+
+  const getCincoDisplayColor = (match) => {
+    // When fallback is applied and Limite Tabela has green color, display in green
+    if (match.fallback_applied && match.limite_tabela_color === 'green') {
+      return 'value-green';
+    }
+    // Otherwise check the cinco_porcento color
+    return getColorClass(match.cinco_porcento_color);
   };
 
   const keywordCount = itemNames.trim().split('\n').filter(line => line.trim()).length;
@@ -270,67 +255,6 @@ Exemplo: 1570.THINER 5 LITROS FARBEN"
           </Card>
         </div>
 
-        {defaultPdfStatus?.has_default && (
-          <div className="filter-section">
-            <Button
-              onClick={handleShowGreenLimitItems}
-              disabled={loadingGreenLimit}
-              className="filter-button"
-              data-testid="green-limit-filter-button"
-            >
-              <Filter size={18} />
-              {loadingGreenLimit ? "Carregando..." : "Mostrar itens: 5% vazio + Limite Tabela verde"}
-            </Button>
-          </div>
-        )}
-
-        {greenLimitItems && greenLimitItems.items && greenLimitItems.items.length > 0 && (
-          <div className="results-section green-limit-section" data-testid="green-limit-results">
-            <div className="results-header">
-              <Filter size={24} />
-              <h2>Itens com Limite Tabela Verde</h2>
-              <span className="results-summary" data-testid="green-limit-summary">
-                {greenLimitItems.total_count} itens encontrados
-              </span>
-            </div>
-
-            <div className="filter-info-banner">
-              <span>Exibindo apenas itens onde o campo <strong>5%</strong> está vazio e o campo <strong>Limite Tabela</strong> possui destaque verde no PDF original.</span>
-            </div>
-
-            <div className="results-table-container">
-              <table className="results-table" data-testid="green-limit-table">
-                <thead>
-                  <tr>
-                    <th>Item</th>
-                    <th>Valor de Venda</th>
-                    <th>Limite Sistema</th>
-                    <th className="green-highlight-header">Limite Tabela (Verde)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {greenLimitItems.items.map((item, index) => (
-                    <tr key={index} data-testid={`green-limit-row-${index}`}>
-                      <td className="item-name" data-testid={`green-limit-item-${index}`}>
-                        {item.produto}
-                      </td>
-                      <td className="value-cell" data-testid={`green-limit-valor-venda-${index}`}>
-                        {item.valor_venda}
-                      </td>
-                      <td className="value-cell" data-testid={`green-limit-limite-sistema-${index}`}>
-                        {item.limite_sistema}
-                      </td>
-                      <td className="value-cell value-green green-highlight-cell" data-testid={`green-limit-limite-tabela-${index}`}>
-                        {item.limite_tabela}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
         {quotations && quotations.results && quotations.results.length > 0 && (
           <div className="results-section" data-testid="results-section">
             <div className="results-header">
@@ -406,7 +330,7 @@ Exemplo: 1570.THINER 5 LITROS FARBEN"
                                 {match.limite_tabela}
                               </td>
                               <td className="cinco-cell" data-testid={`cinco-display-${kIndex}-${mIndex}`}>
-                                <span className={`cinco-value ${match.fallback_applied ? 'fallback' : 'original'} ${getColorClass(match.cinco_porcento_color)}`}>
+                                <span className={`cinco-value ${match.fallback_applied ? 'fallback-green' : 'original'} ${getCincoDisplayColor(match)}`} data-testid={`cinco-value-${kIndex}-${mIndex}`}>
                                   {match.cinco_porcento_display}
                                 </span>
                                 {match.fallback_applied && (
