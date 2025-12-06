@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Upload, Search, FileText, TrendingUp, Star, Info, Database } from "lucide-react";
+import { Upload, Search, FileText, TrendingUp, Star, Database } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -137,7 +137,8 @@ function App() {
   };
 
   const getColorClass = (color) => {
-    if (color === 'yellow') return 'value-red';  // Yellow highlight → Red display
+    // Display exact PDF colors: green stays green, yellow stays yellow
+    if (color === 'yellow') return 'value-yellow';
     if (color === 'green') return 'value-green';
     return '';
   };
@@ -152,7 +153,7 @@ function App() {
             <FileText size={32} />
           </div>
           <h1 className="header-title">Sistema de Cotação de Preços</h1>
-          <p className="header-subtitle">Busca ilimitada • Modo exato/parcial • Sistema de favoritos • Detecção de cores</p>
+          <p className="header-subtitle">Busca ilimitada • Modo exato/parcial • Sistema de favoritos • Cores originais do PDF</p>
         </header>
 
         {defaultPdfStatus?.has_default && (
@@ -221,9 +222,9 @@ function App() {
                 </Label>
                 <Textarea
                   id="item-names"
-                  placeholder="Busca parcial: THINER (retorna todos)
-Busca exata: 1570.THINER 5 LITROS FARBEN (retorna só esse)
-..."
+                  placeholder="Digite palavras-chave ou nomes completos
+Exemplo: THINER
+Exemplo: 1570.THINER 5 LITROS FARBEN"
                   value={itemNames}
                   onChange={(e) => setItemNames(e.target.value)}
                   className="search-textarea"
@@ -256,16 +257,6 @@ Busca exata: 1570.THINER 5 LITROS FARBEN (retorna só esse)
               </span>
             </div>
 
-            <div className="info-banner" data-testid="info-banner">
-              <Info size={16} />
-              <span>
-                <strong>Modo parcial:</strong> retorna todos os itens que contêm a palavra-chave. 
-                <strong> Modo exato:</strong> se o texto for igual a um item completo, retorna apenas esse.
-                <strong> Favoritos:</strong> aparecem primeiro. 
-                <strong> Cores:</strong> Verde = destaque verde PDF, Vermelho = destaque amarelo PDF.
-              </span>
-            </div>
-
             {quotations.results.map((keywordResult, kIndex) => {
               const favoritesInGroup = keywordResult.matches.filter(m => m.is_favorite).length;
               
@@ -273,11 +264,6 @@ Busca exata: 1570.THINER 5 LITROS FARBEN (retorna só esse)
                 <div key={kIndex} className="keyword-group" data-testid={`keyword-group-${kIndex}`}>
                   <div className="keyword-header">
                     <h3 data-testid={`keyword-${kIndex}`}>
-                      {keywordResult.exact_match_found ? (
-                        <span className="exact-badge">EXATO</span>
-                      ) : (
-                        <span className="partial-badge">PARCIAL</span>
-                      )}
                       <span className="keyword-text">"{keywordResult.keyword}"</span>
                     </h3>
                     <div className="header-badges">
