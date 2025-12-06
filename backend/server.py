@@ -77,6 +77,19 @@ class MatchedItemDetail(BaseModel):
     limite_tabela_color: Optional[str] = None
     cinco_porcento_color: Optional[str] = None
 
+class GreenLimitItem(BaseModel):
+    """Item with empty 5% and green-highlighted Limite Tabela"""
+    item_id: str
+    produto: str
+    valor_venda: str
+    limite_sistema: str
+    limite_tabela: str
+    limite_tabela_color: str  # Will always be 'green'
+
+class GreenLimitResponse(BaseModel):
+    items: List[GreenLimitItem]
+    total_count: int
+
 class KeywordResults(BaseModel):
     """Results for a single keyword search"""
     keyword: str
@@ -114,11 +127,6 @@ def classify_highlight_color(rgb: Tuple[float, float, float]) -> Optional[str]:
     """
     Classify highlight color using HSV color space analysis.
     Returns 'green' for green highlights, 'yellow' for yellow highlights, None otherwise.
-    
-    Color classification strategy:
-    - Green: Hue in green range (80-160°), with sufficient saturation and high value
-    - Yellow: Hue in yellow range (40-80°), with sufficient saturation and high value
-    - Both must have high brightness (value) to be considered highlights
     """
     if rgb is None or len(rgb) != 3:
         return None
@@ -142,56 +150,43 @@ def classify_highlight_color(rgb: Tuple[float, float, float]) -> Optional[str]:
         return None
     
     # Green highlight detection
-    # Hue range: 80-160° (green spectrum)
-    # Allow lower saturation for pale/light greens
     if 80 <= hue_deg <= 160:
-        if s > 0.15:  # Even desaturated greens have some saturation
+        if s > 0.15:
             return 'green'
     
-    # Extended green range for edge cases (light green, cyan-green)
+    # Extended green range for edge cases
     if 70 <= hue_deg < 80 or 160 < hue_deg <= 180:
-        if s > 0.25 and g > 0.7:  # Higher saturation + strong green component
+        if s > 0.25 and g > 0.7:
             return 'green'
     
     # Yellow highlight detection
-    # Hue range: 40-70° (yellow spectrum, excluding green-yellow)
-    # Yellow typically has higher saturation than pale highlights
     if 40 <= hue_deg < 70:
-        if s > 0.30:  # Yellow must have decent saturation to avoid white/cream
+        if s > 0.30:
             return 'yellow'
     
-    # Strict yellow range (pure yellow)
     if 45 <= hue_deg <= 65:
-        if s > 0.20:  # Even pale yellows should have some saturation
+        if s > 0.20:
             return 'yellow'
     
     return None
 
 def extract_cell_background_color(page, bbox: Tuple[float, float, float, float]) -> Optional[str]:
-    """
-    Extract background color from a cell region using character-level color analysis.
-    Returns 'green', 'yellow', or None
-    """
+    """Extract background color from a cell region"""
     x0, top, x1, bottom = bbox
     
     try:
-        # Get all characters in the cell region
         chars = page.within_bbox((x0, top, x1, bottom)).chars
         
         if not chars:
             return None
         
-        # Analyze background colors of characters
         colors_found = []
         
         for char in chars:
-            # Check for non-stroking color (fill/background)
             if hasattr(char, 'non_stroking_color') and char['non_stroking_color']:
                 color = char['non_stroking_color']
                 
-                # Handle different color formats
                 if isinstance(color, (list, tuple)) and len(color) >= 3:
-                    # Normalize to 0-1 range if needed
                     if max(color[:3]) > 1:
                         rgb = tuple(c / 255.0 for c in color[:3])
                     else:
@@ -201,9 +196,7 @@ def extract_cell_background_color(page, bbox: Tuple[float, float, float, float])
                     if classified:
                         colors_found.append(classified)
         
-        # Return most common color if found
         if colors_found:
-            # Use majority vote
             green_count = colors_found.count('green')
             yellow_count = colors_found.count('yellow')
             
@@ -212,7 +205,7 @@ def extract_cell_background_color(page, bbox: Tuple[float, float, float, float])
             elif yellow_count > green_count:
                 return 'yellow'
             elif green_count > 0:
-                return 'green'  # Prefer green in tie
+                return 'green'
         
     except Exception as e:
         logging.debug(f"Color extraction error: {str(e)}")
@@ -226,10 +219,7 @@ def clean_price_value(value: str) -> str:
     return value.strip()
 
 def parse_pdf_pricing_table(pdf_bytes: bytes) -> List[dict]:
-    """
-    Parse PDF and extract pricing table data with enhanced color detection.
-    Uses HSV color space analysis to distinguish green vs yellow highlights.
-    """
+    """Parse PDF and extract pricing table data with enhanced color detection"""
     items = []
     
     with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
@@ -237,7 +227,6 @@ def parse_pdf_pricing_table(pdf_bytes: bytes) -> List[dict]:
             tables = page.extract_tables()
             
             for table in tables:
-                # Skip header row
                 for row_idx, row in enumerate(table[1:], start=1):
                     if len(row) >= 5 and row[0]:
                         produto = row[0].strip() if row[0] else ''
@@ -245,20 +234,11 @@ def parse_pdf_pricing_table(pdf_bytes: bytes) -> List[dict]:
                         if not produto:
                             continue
                         
-                        # Try to get bounding boxes for color detection
-                        # This is approximate - we'll analyze the general area
                         try:
-                            # Get table bounding box info
-                            table_bbox = page.bbox
-                            
-                            # Approximate cell colors by analyzing text in cells
                             valor_venda_color = None
                             limite_sistema_color = None
                             limite_tabela_color = None
                             cinco_porcento_color = None
-                            
-                            # Try to detect colors from the page content
-                            # Note: This is a best-effort approach with pdfplumber's limitations
                             
                         except Exception as e:
                             logging.debug(f"Color detection error for row: {str(e)}")
@@ -285,7 +265,7 @@ def check_exact_match(query: str, item_name: str) -> bool:
     return query.strip().lower() == item_name.strip().lower()
 
 def fuzzy_match_multiple(query: str, all_items: List[dict], threshold: int = 60) -> tuple:
-    """Find all items matching the query, returns (exact_match_found, matches_list)"""
+    """Find all items matching the query"""
     if not all_items:
         return (False, [])
     
@@ -293,31 +273,26 @@ def fuzzy_match_multiple(query: str, all_items: List[dict], threshold: int = 60)
     query_lower = query.lower().strip()
     exact_match_found = False
     
-    # First, check for exact matches
     for item in all_items:
         if check_exact_match(query, item['produto']):
             matches = [(item, 100)]
             exact_match_found = True
             return (exact_match_found, matches)
     
-    # No exact match - perform partial matching
     for item in all_items:
         item_name = item['produto']
         item_name_lower = item_name.lower()
         
-        # Exact substring match
         if query_lower in item_name_lower:
             score = 95
             matches.append((item, score))
             continue
         
-        # All words in query appear in item name
         query_words = query_lower.split()
         if all(word in item_name_lower for word in query_words):
             matches.append((item, 85))
             continue
         
-        # Fuzzy matching
         token_score = fuzz.token_sort_ratio(query_lower, item_name_lower)
         if token_score >= threshold:
             matches.append((item, token_score))
@@ -383,6 +358,47 @@ async def upload_pdf(file: UploadFile = File(...)):
     except Exception as e:
         logging.error(f"Error processing PDF: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error processing PDF: {str(e)}")
+
+@api_router.get("/items-green-limit", response_model=GreenLimitResponse)
+async def get_items_with_green_limit():
+    """
+    Get all items where:
+    1. 5% field is empty/missing
+    2. Limite Tabela has a green highlight in PDF
+    """
+    try:
+        # Query items where cinco_porcento is empty AND limite_tabela_color is 'green'
+        query = {
+            "$or": [
+                {"cinco_porcento": ""},
+                {"cinco_porcento": {"$exists": False}}
+            ],
+            "limite_tabela_color": "green",
+            "limite_tabela": {"$ne": ""}  # Ensure limite_tabela has a value
+        }
+        
+        items = await db.pricing_items.find(query, {"_id": 0}).to_list(10000)
+        
+        green_limit_items = []
+        for item in items:
+            green_item = GreenLimitItem(
+                item_id=item['id'],
+                produto=item['produto'],
+                valor_venda=item.get('valor_venda', 'N/A'),
+                limite_sistema=item.get('limite_sistema', 'N/A'),
+                limite_tabela=item['limite_tabela'],
+                limite_tabela_color='green'
+            )
+            green_limit_items.append(green_item)
+        
+        return GreenLimitResponse(
+            items=green_limit_items,
+            total_count=len(green_limit_items)
+        )
+    
+    except Exception as e:
+        logging.error(f"Error getting green limit items: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error processing request: {str(e)}")
 
 @api_router.post("/quotation-batch", response_model=BatchQuotationResponse)
 async def get_batch_quotation(request: BatchQuotationRequest):
