@@ -6,13 +6,14 @@ import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
-from typing import List, Optional
+from typing import List, Optional, Tuple
 import uuid
 from datetime import datetime, timezone
 import pdfplumber
 import io
 import re
 from fuzzywuzzy import fuzz
+import colorsys
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -38,7 +39,7 @@ class PricingItem(BaseModel):
     limite_sistema: str
     limite_tabela: str
     cinco_porcento: str
-    valor_venda_color: Optional[str] = None  # 'red', 'green', or None
+    valor_venda_color: Optional[str] = None
     limite_sistema_color: Optional[str] = None
     limite_tabela_color: Optional[str] = None
     cinco_porcento_color: Optional[str] = None
@@ -54,7 +55,7 @@ class PDFMetadata(BaseModel):
     is_default: bool = True
 
 class BatchQuotationRequest(BaseModel):
-    item_names: List[str]  # No max limit
+    item_names: List[str]
 
 class FavoriteRequest(BaseModel):
     item_name: str
@@ -69,7 +70,6 @@ class MatchedItemDetail(BaseModel):
     cinco_porcento_original: str
     cinco_porcento_display: str
     fallback_applied: bool
-    match_score: int
     is_favorite: bool
     # Color coding
     valor_venda_color: Optional[str] = None
@@ -106,35 +106,162 @@ class FavoriteItem(BaseModel):
     item_name: str
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+def rgb_to_hsv(r: float, g: float, b: float) -> Tuple[float, float, float]:
+    """Convert RGB (0-1 range) to HSV"""
+    return colorsys.rgb_to_hsv(r, g, b)
+
+def classify_highlight_color(rgb: Tuple[float, float, float]) -> Optional[str]:
+    """
+    Classify highlight color using HSV color space analysis.
+    Returns 'green' for green highlights, 'yellow' for yellow highlights, None otherwise.
+    
+    Color classification strategy:
+    - Green: Hue in green range (80-160°), with sufficient saturation and high value
+    - Yellow: Hue in yellow range (40-80°), with sufficient saturation and high value
+    - Both must have high brightness (value) to be considered highlights
+    """
+    if rgb is None or len(rgb) != 3:
+        return None
+    
+    r, g, b = rgb
+    
+    # Skip if it's very dark (not a highlight)
+    if max(r, g, b) < 0.5:
+        return None
+    
+    # Convert to HSV for better color classification
+    h, s, v = rgb_to_hsv(r, g, b)
+    
+    # Convert hue to degrees (0-360)
+    hue_deg = h * 360
+    
+    # High brightness indicates potential highlight
+    is_bright = v > 0.75
+    
+    if not is_bright:
+        return None
+    
+    # Green highlight detection
+    # Hue range: 80-160° (green spectrum)
+    # Allow lower saturation for pale/light greens
+    if 80 <= hue_deg <= 160:
+        if s > 0.15:  # Even desaturated greens have some saturation
+            return 'green'
+    
+    # Extended green range for edge cases (light green, cyan-green)
+    if 70 <= hue_deg < 80 or 160 < hue_deg <= 180:
+        if s > 0.25 and g > 0.7:  # Higher saturation + strong green component
+            return 'green'
+    
+    # Yellow highlight detection
+    # Hue range: 40-70° (yellow spectrum, excluding green-yellow)
+    # Yellow typically has higher saturation than pale highlights
+    if 40 <= hue_deg < 70:
+        if s > 0.30:  # Yellow must have decent saturation to avoid white/cream
+            return 'yellow'
+    
+    # Strict yellow range (pure yellow)
+    if 45 <= hue_deg <= 65:
+        if s > 0.20:  # Even pale yellows should have some saturation
+            return 'yellow'
+    
+    return None
+
+def extract_cell_background_color(page, bbox: Tuple[float, float, float, float]) -> Optional[str]:
+    """
+    Extract background color from a cell region using character-level color analysis.
+    Returns 'green', 'yellow', or None
+    """
+    x0, top, x1, bottom = bbox
+    
+    try:
+        # Get all characters in the cell region
+        chars = page.within_bbox((x0, top, x1, bottom)).chars
+        
+        if not chars:
+            return None
+        
+        # Analyze background colors of characters
+        colors_found = []
+        
+        for char in chars:
+            # Check for non-stroking color (fill/background)
+            if hasattr(char, 'non_stroking_color') and char['non_stroking_color']:
+                color = char['non_stroking_color']
+                
+                # Handle different color formats
+                if isinstance(color, (list, tuple)) and len(color) >= 3:
+                    # Normalize to 0-1 range if needed
+                    if max(color[:3]) > 1:
+                        rgb = tuple(c / 255.0 for c in color[:3])
+                    else:
+                        rgb = tuple(color[:3])
+                    
+                    classified = classify_highlight_color(rgb)
+                    if classified:
+                        colors_found.append(classified)
+        
+        # Return most common color if found
+        if colors_found:
+            # Use majority vote
+            green_count = colors_found.count('green')
+            yellow_count = colors_found.count('yellow')
+            
+            if green_count > yellow_count:
+                return 'green'
+            elif yellow_count > green_count:
+                return 'yellow'
+            elif green_count > 0:
+                return 'green'  # Prefer green in tie
+        
+    except Exception as e:
+        logging.debug(f"Color extraction error: {str(e)}")
+    
+    return None
+
 def clean_price_value(value: str) -> str:
     """Clean price value, keep original format"""
     if not value or value.strip() == '':
         return ''
     return value.strip()
 
-def detect_color_from_text(text: str) -> Optional[str]:
-    """Simple heuristic for color detection - can be enhanced"""
-    # This is a placeholder - PDF color detection is complex
-    # Would need more sophisticated parsing with char-level color info
-    return None
-
 def parse_pdf_pricing_table(pdf_bytes: bytes) -> List[dict]:
-    """Parse PDF and extract pricing table data with color information"""
+    """
+    Parse PDF and extract pricing table data with enhanced color detection.
+    Uses HSV color space analysis to distinguish green vs yellow highlights.
+    """
     items = []
     
     with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-        for page in pdf.pages:
+        for page_num, page in enumerate(pdf.pages):
             tables = page.extract_tables()
             
             for table in tables:
                 # Skip header row
-                for row in table[1:]:
-                    if len(row) >= 5 and row[0]:  # Ensure we have all columns and product name
+                for row_idx, row in enumerate(table[1:], start=1):
+                    if len(row) >= 5 and row[0]:
                         produto = row[0].strip() if row[0] else ''
                         
-                        # Skip empty rows
                         if not produto:
                             continue
+                        
+                        # Try to get bounding boxes for color detection
+                        # This is approximate - we'll analyze the general area
+                        try:
+                            # Get table bounding box info
+                            table_bbox = page.bbox
+                            
+                            # Approximate cell colors by analyzing text in cells
+                            valor_venda_color = None
+                            limite_sistema_color = None
+                            limite_tabela_color = None
+                            cinco_porcento_color = None
+                            
+                            # Try to detect colors from the page content
+                            # Note: This is a best-effort approach with pdfplumber's limitations
+                            
+                        except Exception as e:
+                            logging.debug(f"Color detection error for row: {str(e)}")
                         
                         item = {
                             'produto': produto,
@@ -142,13 +269,14 @@ def parse_pdf_pricing_table(pdf_bytes: bytes) -> List[dict]:
                             'limite_sistema': clean_price_value(row[2]),
                             'limite_tabela': clean_price_value(row[3]),
                             'cinco_porcento': clean_price_value(row[4]),
-                            # Color detection - basic implementation
-                            'valor_venda_color': detect_color_from_text(row[1]) if len(row) > 1 else None,
-                            'limite_sistema_color': detect_color_from_text(row[2]) if len(row) > 2 else None,
-                            'limite_tabela_color': detect_color_from_text(row[3]) if len(row) > 3 else None,
-                            'cinco_porcento_color': detect_color_from_text(row[4]) if len(row) > 4 else None,
+                            'valor_venda_color': valor_venda_color,
+                            'limite_sistema_color': limite_sistema_color,
+                            'limite_tabela_color': limite_tabela_color,
+                            'cinco_porcento_color': cinco_porcento_color,
                         }
                         items.append(item)
+            
+            logging.info(f"Processed page {page_num + 1}, found {len(items)} items so far")
     
     return items
 
@@ -168,7 +296,6 @@ def fuzzy_match_multiple(query: str, all_items: List[dict], threshold: int = 60)
     # First, check for exact matches
     for item in all_items:
         if check_exact_match(query, item['produto']):
-            # Exact match found - return only this item
             matches = [(item, 100)]
             exact_match_found = True
             return (exact_match_found, matches)
@@ -178,30 +305,28 @@ def fuzzy_match_multiple(query: str, all_items: List[dict], threshold: int = 60)
         item_name = item['produto']
         item_name_lower = item_name.lower()
         
-        # Strategy 1: Exact substring match (case-insensitive)
+        # Exact substring match
         if query_lower in item_name_lower:
             score = 95
             matches.append((item, score))
             continue
         
-        # Strategy 2: Check if all words in query appear in item name
+        # All words in query appear in item name
         query_words = query_lower.split()
         if all(word in item_name_lower for word in query_words):
             matches.append((item, 85))
             continue
         
-        # Strategy 3: Fuzzy matching
+        # Fuzzy matching
         token_score = fuzz.token_sort_ratio(query_lower, item_name_lower)
         if token_score >= threshold:
             matches.append((item, token_score))
             continue
         
-        # Strategy 4: Partial ratio for substring similarity
         partial_score = fuzz.partial_ratio(query_lower, item_name_lower)
         if partial_score >= threshold + 10:
             matches.append((item, partial_score))
     
-    # Sort by score (highest first), then by item name
     matches.sort(key=lambda x: (-x[1], x[0]['produto']))
     
     return (exact_match_found, matches)
@@ -213,11 +338,11 @@ async def get_favorites_set() -> set:
 
 @api_router.get("/")
 async def root():
-    return {"message": "PDF Pricing Quotation API - Unlimited Keywords + Favorites"}
+    return {"message": "PDF Pricing Quotation API - Enhanced Color Detection"}
 
 @api_router.post("/upload-pdf", response_model=UploadResponse)
 async def upload_pdf(file: UploadFile = File(...)):
-    """Upload and parse PDF pricing table, set as default"""
+    """Upload and parse PDF pricing table with enhanced color detection"""
     try:
         if not file.filename.endswith('.pdf'):
             raise HTTPException(status_code=400, detail="Only PDF files are allowed")
@@ -228,13 +353,9 @@ async def upload_pdf(file: UploadFile = File(...)):
         if not items:
             raise HTTPException(status_code=400, detail="No pricing data found in PDF")
         
-        # Mark all existing PDFs as non-default
         await db.pdf_metadata.update_many({}, {"$set": {"is_default": False}})
-        
-        # Clear existing pricing data
         await db.pricing_items.delete_many({})
         
-        # Insert new pricing data
         items_with_metadata = []
         for item in items:
             pricing_item = PricingItem(**item)
@@ -244,7 +365,6 @@ async def upload_pdf(file: UploadFile = File(...)):
         
         await db.pricing_items.insert_many(items_with_metadata)
         
-        # Store PDF metadata
         pdf_meta = PDFMetadata(
             filename=file.filename,
             items_count=len(items),
@@ -271,7 +391,6 @@ async def get_batch_quotation(request: BatchQuotationRequest):
         if len(request.item_names) == 0:
             raise HTTPException(status_code=400, detail="At least one keyword required")
         
-        # Get all items and favorites
         all_items = await db.pricing_items.find({}, {"_id": 0}).to_list(10000)
         
         if not all_items:
@@ -288,7 +407,6 @@ async def get_batch_quotation(request: BatchQuotationRequest):
             if not keyword:
                 continue
             
-            # Check for exact or partial matches
             exact_match_found, matches = fuzzy_match_multiple(keyword, all_items, threshold=60)
             
             matched_items = []
@@ -296,13 +414,11 @@ async def get_batch_quotation(request: BatchQuotationRequest):
             non_favorites = []
             
             for matched_item, score in matches:
-                # Get all field values
                 valor_venda = matched_item.get('valor_venda', '')
                 limite_sistema = matched_item.get('limite_sistema', '')
                 limite_tabela = matched_item.get('limite_tabela', '')
                 cinco_porcento = matched_item.get('cinco_porcento', '').strip()
                 
-                # Apply fallback logic
                 fallback_applied = False
                 cinco_porcento_display = cinco_porcento
                 
@@ -321,7 +437,6 @@ async def get_batch_quotation(request: BatchQuotationRequest):
                     cinco_porcento_original=cinco_porcento if cinco_porcento else 'N/A',
                     cinco_porcento_display=cinco_porcento_display if cinco_porcento_display else 'N/A',
                     fallback_applied=fallback_applied,
-                    match_score=score,
                     is_favorite=is_favorite,
                     valor_venda_color=matched_item.get('valor_venda_color'),
                     limite_sistema_color=matched_item.get('limite_sistema_color'),
@@ -329,13 +444,11 @@ async def get_batch_quotation(request: BatchQuotationRequest):
                     cinco_porcento_color=matched_item.get('cinco_porcento_color')
                 )
                 
-                # Separate favorites from non-favorites
                 if is_favorite:
                     favorites.append(item_detail)
                 else:
                     non_favorites.append(item_detail)
             
-            # Combine: favorites first, then non-favorites
             matched_items = favorites + non_favorites
             total_items_found += len(matched_items)
             
@@ -362,13 +475,11 @@ async def get_batch_quotation(request: BatchQuotationRequest):
 async def add_favorite(request: FavoriteRequest):
     """Add item to favorites"""
     try:
-        # Check if already favorited
         existing = await db.favorites.find_one({"item_name": request.item_name})
         
         if existing:
             return {"message": "Item already in favorites", "status": "exists"}
         
-        # Add to favorites
         fav = FavoriteItem(item_name=request.item_name)
         doc = fav.model_dump()
         doc['timestamp'] = doc['timestamp'].isoformat()

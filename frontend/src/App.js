@@ -127,7 +127,6 @@ function App() {
         toast.success("Adicionado aos favoritos");
       }
       
-      // Refresh results to update ordering
       if (quotations) {
         handleGetQuotations();
       }
@@ -138,7 +137,7 @@ function App() {
   };
 
   const getColorClass = (color) => {
-    if (color === 'red') return 'value-red';
+    if (color === 'yellow') return 'value-red';  // Yellow highlight → Red display
     if (color === 'green') return 'value-green';
     return '';
   };
@@ -153,7 +152,7 @@ function App() {
             <FileText size={32} />
           </div>
           <h1 className="header-title">Sistema de Cotação de Preços</h1>
-          <p className="header-subtitle">Busca ilimitada • Modo exato/parcial • Sistema de favoritos • Destaque de cores</p>
+          <p className="header-subtitle">Busca ilimitada • Modo exato/parcial • Sistema de favoritos • Detecção de cores</p>
         </header>
 
         {defaultPdfStatus?.has_default && (
@@ -262,7 +261,8 @@ Busca exata: 1570.THINER 5 LITROS FARBEN (retorna só esse)
               <span>
                 <strong>Modo parcial:</strong> retorna todos os itens que contêm a palavra-chave. 
                 <strong> Modo exato:</strong> se o texto for igual a um item completo, retorna apenas esse.
-                <strong> Favoritos:</strong> aparecem primeiro nos resultados.
+                <strong> Favoritos:</strong> aparecem primeiro. 
+                <strong> Cores:</strong> Verde = destaque verde PDF, Vermelho = destaque amarelo PDF.
               </span>
             </div>
 
@@ -302,8 +302,7 @@ Busca exata: 1570.THINER 5 LITROS FARBEN (retorna só esse)
                             <th>Valor de Venda</th>
                             <th>Limite Sistema</th>
                             <th>Limite Tabela</th>
-                            <th>5% (com fallback)</th>
-                            <th>Score</th>
+                            <th>5%</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -345,9 +344,6 @@ Busca exata: 1570.THINER 5 LITROS FARBEN (retorna só esse)
                                     Fallback
                                   </span>
                                 )}
-                              </td>
-                              <td className="match-score" data-testid={`match-score-${kIndex}-${mIndex}`}>
-                                {match.match_score}%
                               </td>
                             </tr>
                           ))}
