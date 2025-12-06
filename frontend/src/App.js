@@ -1,23 +1,37 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import "@/App.css";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Upload, Search, FileText, TrendingUp } from "lucide-react";
+import { Upload, Search, FileText, TrendingUp, CheckCircle2, XCircle, Database } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
 function App() {
   const [file, setFile] = useState(null);
-  const [itemName, setItemName] = useState("");
-  const [quotation, setQuotation] = useState(null);
+  const [itemNames, setItemNames] = useState("");
+  const [quotations, setQuotations] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [searching, setSearching] = useState(false);
-  const [itemsCount, setItemsCount] = useState(0);
+  const [defaultPdfStatus, setDefaultPdfStatus] = useState(null);
+
+  useEffect(() => {
+    fetchDefaultPdfStatus();
+  }, []);
+
+  const fetchDefaultPdfStatus = async () => {
+    try {
+      const response = await axios.get(`${API}/default-pdf-status`);
+      setDefaultPdfStatus(response.data);
+    } catch (error) {
+      console.error("Error fetching default PDF status:", error);
+    }
+  };
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
@@ -45,9 +59,10 @@ function App() {
         },
       });
 
-      toast.success(`PDF processado com sucesso! ${response.data.items_count} itens carregados`);
-      setItemsCount(response.data.items_count);
-      setQuotation(null);
+      toast.success(`PDF definido como padrão! ${response.data.items_count} itens carregados`);
+      await fetchDefaultPdfStatus();
+      setQuotations(null);
+      setFile(null);
     } catch (error) {
       console.error("Error uploading PDF:", error);
       toast.error(error.response?.data?.detail || "Erro ao processar PDF");
@@ -56,32 +71,33 @@ function App() {
     }
   };
 
-  const handleGetQuotation = async () => {
-    if (!itemName.trim()) {
-      toast.error("Por favor, digite o nome do item");
+  const handleGetQuotations = async () => {
+    const lines = itemNames.trim().split('\n').filter(line => line.trim());
+    
+    if (lines.length === 0) {
+      toast.error("Por favor, digite pelo menos um nome de item");
+      return;
+    }
+
+    if (lines.length > 15) {
+      toast.error("Máximo de 15 itens permitidos por consulta");
       return;
     }
 
     setSearching(true);
     try {
-      const response = await axios.post(`${API}/quotation`, {
-        item_name: itemName,
+      const response = await axios.post(`${API}/quotation-batch`, {
+        item_names: lines,
       });
 
-      setQuotation(response.data);
-      toast.success("Cotação encontrada!");
+      setQuotations(response.data);
+      toast.success(`${response.data.total_found} de ${response.data.total_queried} itens encontrados!`);
     } catch (error) {
-      console.error("Error getting quotation:", error);
-      toast.error(error.response?.data?.detail || "Erro ao buscar cotação");
-      setQuotation(null);
+      console.error("Error getting quotations:", error);
+      toast.error(error.response?.data?.detail || "Erro ao buscar cotações");
+      setQuotations(null);
     } finally {
       setSearching(false);
-    }
-  };
-
-  const handleKeyPress = (e) => {
-    if (e.key === "Enter") {
-      handleGetQuotation();
     }
   };
 
@@ -93,17 +109,28 @@ function App() {
             <FileText size={32} />
           </div>
           <h1 className="header-title">Sistema de Cotação de Preços</h1>
-          <p className="header-subtitle">Faça upload da tabela de preços e consulte valores instantaneamente</p>
+          <p className="header-subtitle">Gerencie tabela de preços padrão e consulte até 15 itens simultaneamente</p>
         </header>
+
+        {defaultPdfStatus?.has_default && (
+          <div className="default-pdf-status" data-testid="default-pdf-status">
+            <Database size={20} />
+            <div className="status-info">
+              <span className="status-label">Tabela Padrão Ativa:</span>
+              <span className="status-value" data-testid="default-pdf-filename">{defaultPdfStatus.filename}</span>
+              <span className="status-detail" data-testid="default-pdf-items-count">({defaultPdfStatus.items_count} itens)</span>
+            </div>
+          </div>
+        )}
 
         <div className="cards-container">
           <Card className="upload-card" data-testid="upload-card">
             <CardHeader>
               <CardTitle className="card-title">
                 <Upload size={20} />
-                Upload da Tabela
+                Definir Tabela Padrão
               </CardTitle>
-              <CardDescription>Envie o arquivo PDF com a tabela de preços</CardDescription>
+              <CardDescription>Envie um PDF para definir como tabela de preços padrão persistente</CardDescription>
             </CardHeader>
             <CardContent className="card-content">
               <div className="upload-section">
@@ -130,13 +157,8 @@ function App() {
                   className="upload-button"
                   data-testid="upload-button"
                 >
-                  {uploading ? "Processando..." : "Fazer Upload"}
+                  {uploading ? "Processando..." : "Definir como Padrão"}
                 </Button>
-                {itemsCount > 0 && (
-                  <div className="items-count" data-testid="items-count-display">
-                    ✓ {itemsCount} itens carregados
-                  </div>
-                )}
               </div>
             </CardContent>
           </Card>
@@ -145,62 +167,103 @@ function App() {
             <CardHeader>
               <CardTitle className="card-title">
                 <Search size={20} />
-                Consultar Cotação
+                Consultar Cotações (Lote)
               </CardTitle>
-              <CardDescription>Digite o nome do produto para obter o preço</CardDescription>
+              <CardDescription>Digite até 15 nomes de produtos (um por linha)</CardDescription>
             </CardHeader>
             <CardContent className="card-content">
               <div className="search-section">
-                <Label htmlFor="item-name" className="search-label">
-                  Nome do Produto
+                <Label htmlFor="item-names" className="search-label">
+                  Nomes dos Produtos (máx. 15)
                 </Label>
-                <Input
-                  id="item-name"
-                  type="text"
-                  placeholder="Ex: THINER 5 LITROS FARBEN"
-                  value={itemName}
-                  onChange={(e) => setItemName(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  className="search-input"
-                  data-testid="item-name-input"
+                <Textarea
+                  id="item-names"
+                  placeholder="Digite um nome por linha:
+THINER 5 LITROS FARBEN
+ACAB. EMBUTIR PERFIL LED
+..."
+                  value={itemNames}
+                  onChange={(e) => setItemNames(e.target.value)}
+                  className="search-textarea"
+                  rows={8}
+                  data-testid="item-names-textarea"
                 />
+                <div className="item-counter" data-testid="item-counter">
+                  {itemNames.trim().split('\n').filter(line => line.trim()).length} / 15 itens
+                </div>
                 <Button
-                  onClick={handleGetQuotation}
-                  disabled={!itemName.trim() || searching}
+                  onClick={handleGetQuotations}
+                  disabled={!itemNames.trim() || searching}
                   className="search-button"
                   data-testid="search-button"
                 >
-                  {searching ? "Buscando..." : "Buscar Cotação"}
+                  {searching ? "Buscando..." : "Buscar Cotações"}
                 </Button>
               </div>
-
-              {quotation && (
-                <div className="quotation-result" data-testid="quotation-result">
-                  <div className="result-header">
-                    <TrendingUp size={20} />
-                    <h3>Resultado da Cotação</h3>
-                  </div>
-                  <div className="result-content">
-                    <div className="result-item">
-                      <span className="result-label">Produto:</span>
-                      <span className="result-value" data-testid="result-item-name">{quotation.item_name}</span>
-                    </div>
-                    <div className="result-item highlight">
-                      <span className="result-label">Valor:</span>
-                      <span className="result-value-main" data-testid="result-quotation-value">{quotation.quotation_value}</span>
-                    </div>
-                    <div className="result-item">
-                      <span className="result-label">Origem:</span>
-                      <span className="result-badge" data-testid="result-source">
-                        {quotation.source === "5%" ? "Coluna 5%" : "Coluna Limite"}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
             </CardContent>
           </Card>
         </div>
+
+        {quotations && quotations.results && quotations.results.length > 0 && (
+          <div className="results-section" data-testid="results-section">
+            <div className="results-header">
+              <TrendingUp size={24} />
+              <h2>Resultados das Cotações</h2>
+              <span className="results-summary" data-testid="results-summary">
+                {quotations.total_found} encontrados de {quotations.total_queried} consultados
+              </span>
+            </div>
+
+            <div className="results-table-container">
+              <table className="results-table" data-testid="results-table">
+                <thead>
+                  <tr>
+                    <th>Status</th>
+                    <th>Item Consultado</th>
+                    <th>Item Encontrado</th>
+                    <th>Valor 5%</th>
+                    <th>Valor Limite</th>
+                    <th>Valor Ativo</th>
+                    <th>Origem</th>
+                    <th>Score</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {quotations.results.map((result, index) => (
+                    <tr key={index} className={result.found ? "found" : "not-found"} data-testid={`result-row-${index}`}>
+                      <td>
+                        {result.found ? (
+                          <CheckCircle2 size={20} className="status-icon success" data-testid={`status-found-${index}`} />
+                        ) : (
+                          <XCircle size={20} className="status-icon error" data-testid={`status-not-found-${index}`} />
+                        )}
+                      </td>
+                      <td className="item-queried" data-testid={`item-queried-${index}`}>{result.item_name}</td>
+                      <td className="item-matched" data-testid={`item-matched-${index}`}>
+                        {result.matched_item_name || "-"}
+                      </td>
+                      <td className="value-cell" data-testid={`cinco-value-${index}`}>{result.cinco_porcento_value}</td>
+                      <td className="value-cell" data-testid={`limite-value-${index}`}>{result.limite_value}</td>
+                      <td className="active-value" data-testid={`active-value-${index}`}>
+                        <span className={`value-highlight ${result.source}`}>
+                          {result.active_value}
+                        </span>
+                      </td>
+                      <td data-testid={`source-${index}`}>
+                        <span className={`source-badge ${result.source}`}>
+                          {result.source === "5%" ? "5%" : result.source === "limit" ? "Limite" : "N/A"}
+                        </span>
+                      </td>
+                      <td className="match-score" data-testid={`match-score-${index}`}>
+                        {result.match_score ? `${result.match_score}%` : "-"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
