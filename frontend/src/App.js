@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Upload, Search, FileText, TrendingUp, CheckCircle2, XCircle, Database } from "lucide-react";
+import { Upload, Search, FileText, TrendingUp, CheckCircle2, XCircle, Database, Info } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -75,12 +75,12 @@ function App() {
     const lines = itemNames.trim().split('\n').filter(line => line.trim());
     
     if (lines.length === 0) {
-      toast.error("Por favor, digite pelo menos um nome de item");
+      toast.error("Por favor, digite pelo menos uma palavra-chave");
       return;
     }
 
     if (lines.length > 15) {
-      toast.error("Máximo de 15 itens permitidos por consulta");
+      toast.error("Máximo de 15 palavras-chave permitidas por consulta");
       return;
     }
 
@@ -91,7 +91,7 @@ function App() {
       });
 
       setQuotations(response.data);
-      toast.success(`${response.data.total_found} de ${response.data.total_queried} itens encontrados!`);
+      toast.success(`${response.data.total_items_found} itens encontrados para ${response.data.total_keywords} palavras-chave!`);
     } catch (error) {
       console.error("Error getting quotations:", error);
       toast.error(error.response?.data?.detail || "Erro ao buscar cotações");
@@ -109,7 +109,7 @@ function App() {
             <FileText size={32} />
           </div>
           <h1 className="header-title">Sistema de Cotação de Preços</h1>
-          <p className="header-subtitle">Gerencie tabela de preços padrão e consulte até 15 itens simultaneamente</p>
+          <p className="header-subtitle">Busca inteligente com múltiplos resultados • Até 15 palavras-chave • Exibição completa de campos</p>
         </header>
 
         {defaultPdfStatus?.has_default && (
@@ -167,20 +167,21 @@ function App() {
             <CardHeader>
               <CardTitle className="card-title">
                 <Search size={20} />
-                Consultar Cotações (Lote)
+                Buscar Itens (Múltiplos Resultados)
               </CardTitle>
-              <CardDescription>Digite até 15 nomes de produtos (um por linha)</CardDescription>
+              <CardDescription>Digite até 15 palavras-chave (uma por linha) para buscar todos os itens correspondentes</CardDescription>
             </CardHeader>
             <CardContent className="card-content">
               <div className="search-section">
                 <Label htmlFor="item-names" className="search-label">
-                  Nomes dos Produtos (máx. 15)
+                  Palavras-chave (máx. 15)
                 </Label>
                 <Textarea
                   id="item-names"
-                  placeholder="Digite um nome por linha:
-THINER 5 LITROS FARBEN
-ACAB. EMBUTIR PERFIL LED
+                  placeholder="Digite uma palavra-chave por linha:
+THINER
+LED
+PERFIL
 ..."
                   value={itemNames}
                   onChange={(e) => setItemNames(e.target.value)}
@@ -189,7 +190,7 @@ ACAB. EMBUTIR PERFIL LED
                   data-testid="item-names-textarea"
                 />
                 <div className="item-counter" data-testid="item-counter">
-                  {itemNames.trim().split('\n').filter(line => line.trim()).length} / 15 itens
+                  {itemNames.trim().split('\n').filter(line => line.trim()).length} / 15 palavras-chave
                 </div>
                 <Button
                   onClick={handleGetQuotations}
@@ -197,7 +198,7 @@ ACAB. EMBUTIR PERFIL LED
                   className="search-button"
                   data-testid="search-button"
                 >
-                  {searching ? "Buscando..." : "Buscar Cotações"}
+                  {searching ? "Buscando..." : "Buscar Itens"}
                 </Button>
               </div>
             </CardContent>
@@ -208,60 +209,82 @@ ACAB. EMBUTIR PERFIL LED
           <div className="results-section" data-testid="results-section">
             <div className="results-header">
               <TrendingUp size={24} />
-              <h2>Resultados das Cotações</h2>
+              <h2>Resultados da Busca</h2>
               <span className="results-summary" data-testid="results-summary">
-                {quotations.total_found} encontrados de {quotations.total_queried} consultados
+                {quotations.total_items_found} itens encontrados para {quotations.total_keywords} palavras-chave
               </span>
             </div>
 
-            <div className="results-table-container">
-              <table className="results-table" data-testid="results-table">
-                <thead>
-                  <tr>
-                    <th>Status</th>
-                    <th>Item Consultado</th>
-                    <th>Item Encontrado</th>
-                    <th>Valor 5%</th>
-                    <th>Valor Limite</th>
-                    <th>Valor Ativo</th>
-                    <th>Origem</th>
-                    <th>Score</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {quotations.results.map((result, index) => (
-                    <tr key={index} className={result.found ? "found" : "not-found"} data-testid={`result-row-${index}`}>
-                      <td>
-                        {result.found ? (
-                          <CheckCircle2 size={20} className="status-icon success" data-testid={`status-found-${index}`} />
-                        ) : (
-                          <XCircle size={20} className="status-icon error" data-testid={`status-not-found-${index}`} />
-                        )}
-                      </td>
-                      <td className="item-queried" data-testid={`item-queried-${index}`}>{result.item_name}</td>
-                      <td className="item-matched" data-testid={`item-matched-${index}`}>
-                        {result.matched_item_name || "-"}
-                      </td>
-                      <td className="value-cell" data-testid={`cinco-value-${index}`}>{result.cinco_porcento_value}</td>
-                      <td className="value-cell" data-testid={`limite-value-${index}`}>{result.limite_value}</td>
-                      <td className="active-value" data-testid={`active-value-${index}`}>
-                        <span className={`value-highlight ${result.source}`}>
-                          {result.active_value}
-                        </span>
-                      </td>
-                      <td data-testid={`source-${index}`}>
-                        <span className={`source-badge ${result.source}`}>
-                          {result.source === "5%" ? "5%" : result.source === "limit" ? "Limite" : "N/A"}
-                        </span>
-                      </td>
-                      <td className="match-score" data-testid={`match-score-${index}`}>
-                        {result.match_score ? `${result.match_score}%` : "-"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="info-banner" data-testid="info-banner">
+              <Info size={16} />
+              <span>Todos os itens que contêm as palavras-chave buscadas são exibidos abaixo, agrupados por palavra-chave.</span>
             </div>
+
+            {quotations.results.map((keywordResult, kIndex) => (
+              <div key={kIndex} className="keyword-group" data-testid={`keyword-group-${kIndex}`}>
+                <div className="keyword-header">
+                  <h3 data-testid={`keyword-${kIndex}`}>
+                    Palavra-chave: <span className="keyword-text">"{keywordResult.keyword}"</span>
+                  </h3>
+                  <span className="matches-count" data-testid={`matches-count-${kIndex}`}>
+                    {keywordResult.total_matches} {keywordResult.total_matches === 1 ? 'resultado' : 'resultados'}
+                  </span>
+                </div>
+
+                {keywordResult.total_matches > 0 ? (
+                  <div className="results-table-container">
+                    <table className="results-table" data-testid={`results-table-${kIndex}`}>
+                      <thead>
+                        <tr>
+                          <th>Item Encontrado</th>
+                          <th>Valor de Venda</th>
+                          <th>Limite Sistema</th>
+                          <th>Limite Tabela</th>
+                          <th>5% (com fallback)</th>
+                          <th>Score</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {keywordResult.matches.map((match, mIndex) => (
+                          <tr key={mIndex} data-testid={`match-row-${kIndex}-${mIndex}`}>
+                            <td className="item-name" data-testid={`item-name-${kIndex}-${mIndex}`}>
+                              {match.matched_item_name}
+                            </td>
+                            <td className="value-cell" data-testid={`valor-venda-${kIndex}-${mIndex}`}>
+                              {match.valor_venda}
+                            </td>
+                            <td className="value-cell" data-testid={`limite-sistema-${kIndex}-${mIndex}`}>
+                              {match.limite_sistema}
+                            </td>
+                            <td className="value-cell" data-testid={`limite-tabela-${kIndex}-${mIndex}`}>
+                              {match.limite_tabela}
+                            </td>
+                            <td className="cinco-cell" data-testid={`cinco-display-${kIndex}-${mIndex}`}>
+                              <span className={`cinco-value ${match.fallback_applied ? 'fallback' : 'original'}`}>
+                                {match.cinco_porcento_display}
+                              </span>
+                              {match.fallback_applied && (
+                                <span className="fallback-badge" data-testid={`fallback-badge-${kIndex}-${mIndex}`}>
+                                  Fallback
+                                </span>
+                              )}
+                            </td>
+                            <td className="match-score" data-testid={`match-score-${kIndex}-${mIndex}`}>
+                              {match.match_score}%
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="no-results" data-testid={`no-results-${kIndex}`}>
+                    <XCircle size={20} />
+                    <span>Nenhum item encontrado para esta palavra-chave</span>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         )}
       </div>

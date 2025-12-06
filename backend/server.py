@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 import pdfplumber
 import io
 import re
-from fuzzywuzzy import fuzz, process
+from fuzzywuzzy import fuzz
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -52,20 +52,27 @@ class PDFMetadata(BaseModel):
 class BatchQuotationRequest(BaseModel):
     item_names: List[str] = Field(..., max_length=15)
 
-class ItemQuotationResult(BaseModel):
-    item_name: str
-    matched_item_name: Optional[str] = None
-    cinco_porcento_value: str
-    limite_value: str
-    active_value: str
-    source: str  # "5%" or "limit"
-    match_score: Optional[int] = None
-    found: bool = True
+class MatchedItemDetail(BaseModel):
+    """Individual matched item with all fields"""
+    matched_item_name: str
+    valor_venda: str
+    limite_sistema: str
+    limite_tabela: str
+    cinco_porcento_original: str
+    cinco_porcento_display: str  # With fallback applied if needed
+    fallback_applied: bool
+    match_score: int
+
+class KeywordResults(BaseModel):
+    """Results for a single keyword search"""
+    keyword: str
+    matches: List[MatchedItemDetail]
+    total_matches: int
 
 class BatchQuotationResponse(BaseModel):
-    results: List[ItemQuotationResult]
-    total_queried: int
-    total_found: int
+    results: List[KeywordResults]
+    total_keywords: int
+    total_items_found: int
 
 class UploadResponse(BaseModel):
     message: str
@@ -113,43 +120,50 @@ def parse_pdf_pricing_table(pdf_bytes: bytes) -> List[dict]:
     
     return items
 
-def fuzzy_match_item(query: str, all_items: List[dict], threshold: int = 70) -> Optional[tuple]:
-    """Fuzzy match item name with scoring"""
+def fuzzy_match_multiple(query: str, all_items: List[dict], threshold: int = 60) -> List[tuple]:
+    """Find all items matching the query with fuzzy matching"""
     if not all_items:
-        return None
+        return []
     
-    # Extract all product names
-    product_names = [item['produto'] for item in all_items]
+    matches = []
+    query_lower = query.lower()
     
-    # Try exact match first (case-insensitive)
     for item in all_items:
-        if item['produto'].lower() == query.lower():
-            return (item, 100)
+        item_name = item['produto']
+        item_name_lower = item_name.lower()
+        
+        # Strategy 1: Exact substring match (case-insensitive)
+        if query_lower in item_name_lower:
+            score = 100 if query_lower == item_name_lower else 90
+            matches.append((item, score))
+            continue
+        
+        # Strategy 2: Check if all words in query appear in item name
+        query_words = query_lower.split()
+        if all(word in item_name_lower for word in query_words):
+            matches.append((item, 85))
+            continue
+        
+        # Strategy 3: Fuzzy matching
+        # Use token sort ratio for word order independence
+        token_score = fuzz.token_sort_ratio(query_lower, item_name_lower)
+        if token_score >= threshold:
+            matches.append((item, token_score))
+            continue
+        
+        # Strategy 4: Partial ratio for substring similarity
+        partial_score = fuzz.partial_ratio(query_lower, item_name_lower)
+        if partial_score >= threshold + 10:  # Higher threshold for partial matching
+            matches.append((item, partial_score))
     
-    # Use fuzzy matching with multiple strategies
-    # Strategy 1: Token sort ratio (handles word order)
-    best_match = process.extractOne(query, product_names, scorer=fuzz.token_sort_ratio)
+    # Sort by score (highest first), then by item name
+    matches.sort(key=lambda x: (-x[1], x[0]['produto']))
     
-    if best_match and best_match[1] >= threshold:
-        matched_name = best_match[0]
-        score = best_match[1]
-        matched_item = next(item for item in all_items if item['produto'] == matched_name)
-        return (matched_item, score)
-    
-    # Strategy 2: Partial ratio (for substring matches)
-    best_partial = process.extractOne(query, product_names, scorer=fuzz.partial_ratio)
-    
-    if best_partial and best_partial[1] >= threshold:
-        matched_name = best_partial[0]
-        score = best_partial[1]
-        matched_item = next(item for item in all_items if item['produto'] == matched_name)
-        return (matched_item, score)
-    
-    return None
+    return matches
 
 @api_router.get("/")
 async def root():
-    return {"message": "PDF Pricing Quotation API - Enhanced Version"}
+    return {"message": "PDF Pricing Quotation API - Multi-Match Enhanced Version"}
 
 @api_router.post("/upload-pdf", response_model=UploadResponse)
 async def upload_pdf(file: UploadFile = File(...)):
@@ -206,13 +220,13 @@ async def upload_pdf(file: UploadFile = File(...)):
 
 @api_router.post("/quotation-batch", response_model=BatchQuotationResponse)
 async def get_batch_quotation(request: BatchQuotationRequest):
-    """Get quotations for multiple items (up to 15)"""
+    """Get quotations for multiple keywords (up to 15), returning all matches per keyword"""
     try:
         if len(request.item_names) > 15:
-            raise HTTPException(status_code=400, detail="Maximum 15 items allowed per query")
+            raise HTTPException(status_code=400, detail="Maximum 15 keywords allowed per query")
         
         if len(request.item_names) == 0:
-            raise HTTPException(status_code=400, detail="At least one item name required")
+            raise HTTPException(status_code=400, detail="At least one keyword required")
         
         # Get all items from database
         all_items = await db.pricing_items.find({}, {"_id": 0}).to_list(10000)
@@ -221,63 +235,56 @@ async def get_batch_quotation(request: BatchQuotationRequest):
             raise HTTPException(status_code=404, detail="No pricing data available. Please upload a PDF first.")
         
         results = []
-        found_count = 0
+        total_items_found = 0
         
-        for item_query in request.item_names:
-            item_query = item_query.strip()
+        for keyword in request.item_names:
+            keyword = keyword.strip()
             
-            if not item_query:
+            if not keyword:
                 continue
             
-            # Fuzzy match the item
-            match_result = fuzzy_match_item(item_query, all_items, threshold=60)
+            # Find all matching items for this keyword
+            matches = fuzzy_match_multiple(keyword, all_items, threshold=60)
             
-            if match_result:
-                matched_item, score = match_result
-                
-                # Get both values
+            matched_items = []
+            for matched_item, score in matches:
+                # Get all field values
+                valor_venda = matched_item.get('valor_venda', '')
+                limite_sistema = matched_item.get('limite_sistema', '')
+                limite_tabela = matched_item.get('limite_tabela', '')
                 cinco_porcento = matched_item.get('cinco_porcento', '').strip()
-                limite_tabela = matched_item.get('limite_tabela', '').strip()
                 
-                # Determine active value and source
-                if cinco_porcento and cinco_porcento != '':
-                    active_value = cinco_porcento
-                    source = "5%"
-                elif limite_tabela and limite_tabela != '':
-                    active_value = limite_tabela
-                    source = "limit"
-                else:
-                    active_value = "N/A"
-                    source = "none"
+                # Apply fallback logic: if 5% is empty, use limite_tabela
+                fallback_applied = False
+                cinco_porcento_display = cinco_porcento
                 
-                results.append(ItemQuotationResult(
-                    item_name=item_query,
+                if not cinco_porcento or cinco_porcento == '':
+                    cinco_porcento_display = limite_tabela if limite_tabela else 'N/A'
+                    fallback_applied = True if limite_tabela else False
+                
+                matched_items.append(MatchedItemDetail(
                     matched_item_name=matched_item['produto'],
-                    cinco_porcento_value=cinco_porcento if cinco_porcento else "N/A",
-                    limite_value=limite_tabela if limite_tabela else "N/A",
-                    active_value=active_value,
-                    source=source,
-                    match_score=score,
-                    found=True
+                    valor_venda=valor_venda if valor_venda else 'N/A',
+                    limite_sistema=limite_sistema if limite_sistema else 'N/A',
+                    limite_tabela=limite_tabela if limite_tabela else 'N/A',
+                    cinco_porcento_original=cinco_porcento if cinco_porcento else 'N/A',
+                    cinco_porcento_display=cinco_porcento_display if cinco_porcento_display else 'N/A',
+                    fallback_applied=fallback_applied,
+                    match_score=score
                 ))
-                found_count += 1
-            else:
-                # Item not found
-                results.append(ItemQuotationResult(
-                    item_name=item_query,
-                    matched_item_name=None,
-                    cinco_porcento_value="N/A",
-                    limite_value="N/A",
-                    active_value="N/A",
-                    source="none",
-                    match_score=0,
-                    found=False
-                ))
+            
+            total_items_found += len(matched_items)
+            
+            results.append(KeywordResults(
+                keyword=keyword,
+                matches=matched_items,
+                total_matches=len(matched_items)
+            ))
         
         return BatchQuotationResponse(
             results=results,
-            total_queried=len(request.item_names),
-            total_found=found_count
+            total_keywords=len(results),
+            total_items_found=total_items_found
         )
     
     except HTTPException:
