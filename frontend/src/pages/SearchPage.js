@@ -5,33 +5,20 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Search, TrendingUp, Star, Settings } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Search, TrendingUp, Star } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
 function SearchPage() {
-  const navigate = useNavigate();
   const [itemNames, setItemNames] = useState("");
   const [quotations, setQuotations] = useState(null);
   const [searching, setSearching] = useState(false);
   const [favorites, setFavorites] = useState(new Set());
-  const [defaultPdfStatus, setDefaultPdfStatus] = useState(null);
 
   useEffect(() => {
     fetchFavorites();
-    fetchDefaultPdfStatus();
   }, []);
-
-  const fetchDefaultPdfStatus = async () => {
-    try {
-      const response = await axios.get(`${API}/default-pdf-status`);
-      setDefaultPdfStatus(response.data);
-    } catch (error) {
-      console.error("Error fetching default PDF status:", error);
-    }
-  };
 
   const fetchFavorites = async () => {
     try {
@@ -113,23 +100,11 @@ function SearchPage() {
 
   return (
     <div className="search-page">
-      <div className="search-header">
-        <h1 className="page-title">Buscar Preços</h1>
-        <Button
-          onClick={() => navigate('/settings')}
-          className="settings-button"
-          data-testid="settings-button"
-        >
-          <Settings size={18} />
-          Configurações
-        </Button>
-      </div>
-
       <Card className="search-card" data-testid="search-card">
         <CardHeader>
           <CardTitle className="card-title">
             <Search size={20} />
-            Buscar Itens (Ilimitado)
+            Buscar Itens
           </CardTitle>
           <CardDescription>Digite palavras-chave ou nomes completos (uma por linha)</CardDescription>
         </CardHeader>
@@ -146,7 +121,7 @@ Exemplo: 1570.THINER 5 LITROS FARBEN"
               value={itemNames}
               onChange={(e) => setItemNames(e.target.value)}
               className="search-textarea"
-              rows={10}
+              rows={8}
               data-testid="item-names-textarea"
             />
             <div className="item-counter" data-testid="item-counter">
@@ -186,72 +161,70 @@ Exemplo: 1570.THINER 5 LITROS FARBEN"
                   <div className="header-badges">
                     {favoritesInGroup > 0 && (
                       <span className="favorites-badge" data-testid={`favorites-badge-${kIndex}`}>
-                        <Star size={14} /> {favoritesInGroup} favorito{favoritesInGroup > 1 ? 's' : ''}
+                        <Star size={14} /> {favoritesInGroup}
                       </span>
                     )}
                     <span className="matches-count" data-testid={`matches-count-${kIndex}`}>
-                      {keywordResult.total_matches} resultado{keywordResult.total_matches !== 1 ? 's' : ''}
+                      {keywordResult.total_matches}
                     </span>
                   </div>
                 </div>
 
                 {keywordResult.total_matches > 0 ? (
-                  <div className="results-table-container">
-                    <table className="results-table" data-testid={`results-table-${kIndex}`}>
-                      <thead>
-                        <tr>
-                          <th>Fav</th>
-                          <th>Item Encontrado</th>
-                          <th>Valor de Venda</th>
-                          <th>Limite Sistema</th>
-                          <th>Limite Tabela</th>
-                          <th>5%</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {keywordResult.matches.map((match, mIndex) => (
-                          <tr 
-                            key={mIndex} 
-                            className={match.is_favorite ? 'favorite-row' : ''}
-                            data-testid={`match-row-${kIndex}-${mIndex}`}
+                  <div className="results-cards-container">
+                    {keywordResult.matches.map((match, mIndex) => (
+                      <div 
+                        key={mIndex} 
+                        className={`result-card ${match.is_favorite ? 'favorite' : ''}`}
+                        data-testid={`match-card-${kIndex}-${mIndex}`}
+                      >
+                        <div className="result-card-header">
+                          <button
+                            onClick={() => toggleFavorite(match.matched_item_name, match.is_favorite)}
+                            className={`favorite-btn ${match.is_favorite ? 'active' : ''}`}
+                            data-testid={`favorite-btn-${kIndex}-${mIndex}`}
                           >
-                            <td className="favorite-cell">
-                              <button
-                                onClick={() => toggleFavorite(match.matched_item_name, match.is_favorite)}
-                                className={`favorite-btn ${match.is_favorite ? 'active' : ''}`}
-                                data-testid={`favorite-btn-${kIndex}-${mIndex}`}
-                                title={match.is_favorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
-                              >
-                                <Star size={16} fill={match.is_favorite ? "currentColor" : "none"} />
-                              </button>
-                            </td>
-                            <td className="item-name" data-testid={`item-name-${kIndex}-${mIndex}`}>
-                              {match.matched_item_name}
-                              {match.is_favorite && <span className="fav-tag">★</span>}
-                            </td>
-                            <td className={`value-cell ${getColorClass(match.valor_venda_color)}`} data-testid={`valor-venda-${kIndex}-${mIndex}`}>
+                            <Star size={16} fill={match.is_favorite ? "currentColor" : "none"} />
+                          </button>
+                          <h4 className="result-item-name" data-testid={`item-name-${kIndex}-${mIndex}`}>
+                            {match.matched_item_name}
+                          </h4>
+                        </div>
+                        <div className="result-card-body">
+                          <div className="result-field">
+                            <span className="field-label">Valor de Venda</span>
+                            <span className={`field-value ${getColorClass(match.valor_venda_color)}`}>
                               {match.valor_venda}
-                            </td>
-                            <td className={`value-cell ${getColorClass(match.limite_sistema_color)}`} data-testid={`limite-sistema-${kIndex}-${mIndex}`}>
+                            </span>
+                          </div>
+                          <div className="result-field">
+                            <span className="field-label">Limite Sistema</span>
+                            <span className={`field-value ${getColorClass(match.limite_sistema_color)}`}>
                               {match.limite_sistema}
-                            </td>
-                            <td className={`value-cell ${getColorClass(match.limite_tabela_color)}`} data-testid={`limite-tabela-${kIndex}-${mIndex}`}>
+                            </span>
+                          </div>
+                          <div className="result-field">
+                            <span className="field-label">Limite Tabela</span>
+                            <span className={`field-value ${getColorClass(match.limite_tabela_color)}`}>
                               {match.limite_tabela}
-                            </td>
-                            <td className="cinco-cell" data-testid={`cinco-display-${kIndex}-${mIndex}`}>
-                              <span className={`cinco-value ${match.fallback_applied ? 'fallback-green' : 'original'} ${getCincoDisplayColor(match)}`} data-testid={`cinco-value-${kIndex}-${mIndex}`}>
+                            </span>
+                          </div>
+                          <div className="result-field highlight">
+                            <span className="field-label">5%</span>
+                            <div className="field-value-wrapper">
+                              <span className={`field-value-main ${match.fallback_applied ? 'fallback-green' : 'original'} ${getCincoDisplayColor(match)}`}>
                                 {match.cinco_porcento_display}
                               </span>
                               {match.fallback_applied && (
-                                <span className="preco-cheio-badge" data-testid={`preco-cheio-badge-${kIndex}-${mIndex}`}>
+                                <span className="preco-cheio-badge">
                                   Preço Cheio
                                 </span>
                               )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 ) : (
                   <div className="no-results" data-testid={`no-results-${kIndex}`}>

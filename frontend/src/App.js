@@ -1,13 +1,46 @@
 import "@/App.css";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Toaster } from '@/components/ui/sonner';
 import SearchPage from './pages/SearchPage';
 import SettingsPage from './pages/SettingsPage';
-import { FileText } from "lucide-react";
+import FavoritesPage from './pages/FavoritesPage';
+import { FileText, Search, Star, Settings } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
-function App() {
+function BottomNav() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const navItems = [
+    { path: '/', icon: Search, label: 'Buscar' },
+    { path: '/favorites', icon: Star, label: 'Favoritos' },
+    { path: '/settings', icon: Settings, label: 'Configurações' }
+  ];
+
   return (
-    <BrowserRouter>
+    <div className="bottom-nav" data-testid="bottom-nav">
+      {navItems.map((item) => {
+        const Icon = item.icon;
+        const isActive = location.pathname === item.path;
+        return (
+          <button
+            key={item.path}
+            onClick={() => navigate(item.path)}
+            className={`nav-item ${isActive ? 'active' : ''}`}
+            data-testid={`nav-${item.label.toLowerCase()}`}
+          >
+            <Icon size={24} />
+            <span className="nav-label">{item.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function AppContent() {
+  return (
+    <>
       <div className="app-container">
         <div className="content-wrapper">
           <header className="header">
@@ -18,14 +51,26 @@ function App() {
             <p className="header-subtitle">Busca ilimitada • Sistema de favoritos • Cores originais do PDF</p>
           </header>
 
-          <Routes>
-            <Route path="/" element={<SearchPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+          <div className="main-content">
+            <Routes>
+              <Route path="/" element={<SearchPage />} />
+              <Route path="/favorites" element={<FavoritesPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </div>
         </div>
       </div>
+      <BottomNav />
       <Toaster position="top-right" richColors />
+    </>
+  );
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <AppContent />
     </BrowserRouter>
   );
 }

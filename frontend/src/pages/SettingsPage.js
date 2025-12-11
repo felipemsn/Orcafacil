@@ -5,14 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Upload, FileText, ArrowLeft, Calendar, CheckCircle2 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Upload, FileText, Calendar, CheckCircle2 } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
 function SettingsPage() {
-  const navigate = useNavigate();
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [defaultPdfStatus, setDefaultPdfStatus] = useState(null);
@@ -85,16 +83,7 @@ function SettingsPage() {
 
   return (
     <div className="settings-page">
-      <div className="settings-header">
-        <Button
-          onClick={() => navigate('/')}
-          variant="ghost"
-          className="back-button"
-          data-testid="back-button"
-        >
-          <ArrowLeft size={18} />
-          Voltar
-        </Button>
+      <div className="page-header">
         <h1 className="page-title">Configurações da Tabela</h1>
       </div>
 
