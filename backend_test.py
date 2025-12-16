@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 
 class PDFPricingAPITester:
-    def __init__(self, base_url="https://pdf-pricing-oracle.preview.emergentagent.com"):
+    def __init__(self, base_url="https://price-finder-117.preview.emergentagent.com"):
         self.base_url = base_url
         self.api_url = f"{base_url}/api"
         self.tests_run = 0
