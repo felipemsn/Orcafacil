@@ -7,7 +7,7 @@ import FavoritesPage from './pages/FavoritesPage';
 import { FileText, Search, Star, Settings } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-function BottomNav() {
+function TopNav() {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -18,7 +18,7 @@ function BottomNav() {
   ];
 
   return (
-    <div className="bottom-nav" data-testid="bottom-nav">
+    <div className="top-nav" data-testid="top-nav">
       {navItems.map((item) => {
         const Icon = item.icon;
         const isActive = location.pathname === item.path;
@@ -29,7 +29,7 @@ function BottomNav() {
             className={`nav-item ${isActive ? 'active' : ''}`}
             data-testid={`nav-${item.label.toLowerCase()}`}
           >
-            <Icon size={24} />
+            <Icon size={20} />
             <span className="nav-label">{item.label}</span>
           </button>
         );
@@ -41,6 +41,7 @@ function BottomNav() {
 function AppContent() {
   return (
     <>
+      <TopNav />
       <div className="app-container">
         <div className="content-wrapper">
           <header className="header">
@@ -61,7 +62,6 @@ function AppContent() {
           </div>
         </div>
       </div>
-      <BottomNav />
       <Toaster position="top-right" richColors />
     </>
   );
