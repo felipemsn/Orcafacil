@@ -1,11 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Search, TrendingUp, Star } from "lucide-react";
+import { Search, TrendingUp, Star, ArrowUp, X } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -15,10 +15,28 @@ function SearchPage() {
   const [quotations, setQuotations] = useState(null);
   const [searching, setSearching] = useState(false);
   const [favorites, setFavorites] = useState(new Set());
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const textareaRef = useRef(null);
 
   useEffect(() => {
     fetchFavorites();
+    
+    // Scroll listener
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 300);
+    };
+    
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  useEffect(() => {
+    // Auto-resize textarea
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+    }
+  }, [itemNames]);
 
   const fetchFavorites = async () => {
     try {
@@ -83,6 +101,18 @@ function SearchPage() {
     }
   };
 
+  const scrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
+  };
+
+  const clearText = () => {
+    setItemNames("");
+    toast.success("Texto limpo");
+  };
+
   const getColorClass = (color) => {
     if (color === 'yellow') return 'value-yellow';
     if (color === 'green') return 'value-green';
@@ -114,18 +144,33 @@ function SearchPage() {
               Palavras-chave ou Itens Completos
             </Label>
             <Textarea
+              ref={textareaRef}
               id="item-names"
               placeholder="Digite palavras-chave ou nomes completos
 Exemplo: THINER
 Exemplo: 1570.THINER 5 LITROS FARBEN"
               value={itemNames}
               onChange={(e) => setItemNames(e.target.value)}
-              className="search-textarea"
-              rows={8}
+              className="search-textarea auto-resize"
+              rows={1}
               data-testid="item-names-textarea"
             />
-            <div className="item-counter" data-testid="item-counter">
-              {keywordCount} {keywordCount === 1 ? 'palavra-chave' : 'palavras-chave'}
+            <div className="textarea-controls">
+              <div className="item-counter" data-testid="item-counter">
+                {keywordCount} {keywordCount === 1 ? 'palavra-chave' : 'palavras-chave'}
+              </div>
+              {itemNames && (
+                <Button
+                  onClick={clearText}
+                  variant="ghost"
+                  size="sm"
+                  className="clear-button"
+                  data-testid="clear-button"
+                >
+                  <X size={16} />
+                  Limpar
+                </Button>
+              )}
             </div>
             <Button
               onClick={handleGetQuotations}
@@ -235,6 +280,18 @@ Exemplo: 1570.THINER 5 LITROS FARBEN"
             );
           })}
         </div>
+      )}
+
+      {/* Scroll to Top Button */}
+      {showScrollTop && (
+        <button
+          onClick={scrollToTop}
+          className="scroll-to-top"
+          data-testid="scroll-to-top"
+          title="Voltar ao topo"
+        >
+          <ArrowUp size={24} />
+        </button>
       )}
     </div>
   );
