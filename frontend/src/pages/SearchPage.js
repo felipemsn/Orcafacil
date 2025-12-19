@@ -6,13 +6,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Search, TrendingUp, Star, ArrowUp, X } from "lucide-react";
+import { useSearch } from "@/context/SearchContext";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
 function SearchPage() {
-  const [itemNames, setItemNames] = useState("");
-  const [quotations, setQuotations] = useState(null);
+  const { searchState, updateSearchState } = useSearch();
+  const [itemNames, setItemNames] = useState(searchState.itemNames);
+  const [quotations, setQuotations] = useState(searchState.quotations);
   const [searching, setSearching] = useState(false);
   const [favorites, setFavorites] = useState(new Set());
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -108,8 +110,14 @@ function SearchPage() {
     });
   };
 
+  // Persist search state when it changes
+  useEffect(() => {
+    updateSearchState({ itemNames, quotations });
+  }, [itemNames, quotations]);
+
   const clearText = () => {
     setItemNames("");
+    setQuotations(null);
     toast.success("Texto limpo");
   };
 
