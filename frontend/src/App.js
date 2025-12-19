@@ -4,6 +4,7 @@ import { Toaster } from '@/components/ui/sonner';
 import SearchPage from './pages/SearchPage';
 import SettingsPage from './pages/SettingsPage';
 import FavoritesPage from './pages/FavoritesPage';
+import { SearchProvider } from './context/SearchContext';
 import { FileText, Search, Star, Settings } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -70,7 +71,9 @@ function AppContent() {
 function App() {
   return (
     <BrowserRouter>
-      <AppContent />
+      <SearchProvider>
+        <AppContent />
+      </SearchProvider>
     </BrowserRouter>
   );
 }
