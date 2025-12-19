@@ -16,7 +16,7 @@ body {
   min-height: 100vh;
   background: linear-gradient(135deg, #f0f4f8 0%, #e2e8f0 100%);
   padding: 1rem;
-  padding-top: 70px;
+  padding-top: 80px;
 }
 
 .content-wrapper {
@@ -755,7 +755,7 @@ body {
 @media (max-width: 640px) {
   .app-container {
     padding: 0.5rem;
-    padding-top: 60px;
+    padding-top: 70px;
   }
   
   .top-nav {
