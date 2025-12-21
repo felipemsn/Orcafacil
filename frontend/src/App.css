@@ -38,13 +38,15 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
 }
 
 .header-logo-img {
-  max-width: 280px;
+  max-width: 320px;
+  width: 100%;
   height: auto;
   object-fit: contain;
+  border-radius: 12px;
 }
 
 .header-title {

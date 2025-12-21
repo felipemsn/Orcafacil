@@ -48,13 +48,11 @@ function AppContent() {
           <header className="header">
             <div className="header-logo">
               <img 
-                src="https://customer-assets.emergentagent.com/job_price-finder-117/artifacts/s5opdkqv_daf9f7f8-dcde-4589-b4a8-58bae23ac714.png" 
-                alt="XAB Distribuidora"
+                src="https://customer-assets.emergentagent.com/job_price-finder-117/artifacts/taaz4ayb_XAB_sistema_cotacao_retangular.png" 
+                alt="XAB Distribuidora - Sistema de Cotação de Preços"
                 className="header-logo-img"
               />
             </div>
-            <h1 className="header-title">Sistema de Cotação de Preços</h1>
-            <p className="header-subtitle">Busca ilimitada • Sistema de favoritos • Cores originais do PDF</p>
           </header>
 
           <div className="main-content">
