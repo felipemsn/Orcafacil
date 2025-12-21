@@ -5,7 +5,7 @@ import SearchPage from './pages/SearchPage';
 import SettingsPage from './pages/SettingsPage';
 import FavoritesPage from './pages/FavoritesPage';
 import { SearchProvider } from './context/SearchContext';
-import { FileText, Search, Star, Settings } from "lucide-react";
+import { Search, Star, Settings } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 function TopNav() {
@@ -46,8 +46,12 @@ function AppContent() {
       <div className="app-container">
         <div className="content-wrapper">
           <header className="header">
-            <div className="header-icon">
-              <FileText size={32} />
+            <div className="header-logo">
+              <img 
+                src="https://customer-assets.emergentagent.com/job_price-finder-117/artifacts/s5opdkqv_daf9f7f8-dcde-4589-b4a8-58bae23ac714.png" 
+                alt="XAB Distribuidora"
+                className="header-logo-img"
+              />
             </div>
             <h1 className="header-title">Sistema de Cotação de Preços</h1>
             <p className="header-subtitle">Busca ilimitada • Sistema de favoritos • Cores originais do PDF</p>
