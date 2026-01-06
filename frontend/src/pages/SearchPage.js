@@ -12,7 +12,7 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
 function SearchPage() {
-  const { searchState, updateSearchState } = useSearch();
+  const { searchState, updateSearchState, setIsSearchFocused } = useSearch();
   const [itemNames, setItemNames] = useState(searchState.itemNames);
   const [quotations, setQuotations] = useState(searchState.quotations);
   const [searching, setSearching] = useState(false);
@@ -159,6 +159,8 @@ Exemplo: THINER
 Exemplo: 1570.THINER 5 LITROS FARBEN"
               value={itemNames}
               onChange={(e) => setItemNames(e.target.value)}
+              onFocus={() => setIsSearchFocused(true)}
+              onBlur={() => setIsSearchFocused(false)}
               className="search-textarea auto-resize"
               rows={1}
               data-testid="item-names-textarea"
