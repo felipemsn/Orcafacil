@@ -7,13 +7,19 @@ export function SearchProvider({ children }) {
     itemNames: "",
     quotations: null,
   });
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
 
   const updateSearchState = (newState) => {
     setSearchState(prev => ({ ...prev, ...newState }));
   };
 
   return (
-    <SearchContext.Provider value={{ searchState, updateSearchState }}>
+    <SearchContext.Provider value={{ 
+      searchState, 
+      updateSearchState, 
+      isSearchFocused, 
+      setIsSearchFocused 
+    }}>
       {children}
     </SearchContext.Provider>
   );
