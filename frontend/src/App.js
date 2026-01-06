@@ -1,4 +1,5 @@
 import "@/App.css";
+import { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Toaster } from '@/components/ui/sonner';
 import SearchPage from './pages/SearchPage';
@@ -40,9 +41,16 @@ function TopNav() {
 }
 
 function AppContent() {
-  const { isSearchFocused } = useSearch();
+  const { isSearchFocused, setIsSearchFocused } = useSearch();
   const location = useLocation();
   const showHeader = location.pathname === '/' && !isSearchFocused;
+
+  // Reset search focused state when navigating away from search page
+  useEffect(() => {
+    if (location.pathname !== '/') {
+      setIsSearchFocused(false);
+    }
+  }, [location.pathname, setIsSearchFocused]);
 
   return (
     <>
