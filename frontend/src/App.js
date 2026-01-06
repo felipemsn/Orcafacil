@@ -4,7 +4,7 @@ import { Toaster } from '@/components/ui/sonner';
 import SearchPage from './pages/SearchPage';
 import SettingsPage from './pages/SettingsPage';
 import FavoritesPage from './pages/FavoritesPage';
-import { SearchProvider } from './context/SearchContext';
+import { SearchProvider, useSearch } from './context/SearchContext';
 import { Search, Star, Settings } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -40,20 +40,26 @@ function TopNav() {
 }
 
 function AppContent() {
+  const { isSearchFocused } = useSearch();
+  const location = useLocation();
+  const showHeader = location.pathname === '/' && !isSearchFocused;
+
   return (
     <>
       <TopNav />
       <div className="app-container">
         <div className="content-wrapper">
-          <header className="header">
-            <div className="header-logo">
-              <img 
-                src="https://customer-assets.emergentagent.com/job_price-finder-117/artifacts/taaz4ayb_XAB_sistema_cotacao_retangular.png" 
-                alt="XAB Distribuidora - Sistema de Cotação de Preços"
-                className="header-logo-img"
-              />
-            </div>
-          </header>
+          {showHeader && (
+            <header className="header">
+              <div className="header-logo">
+                <img 
+                  src="https://customer-assets.emergentagent.com/job_price-finder-117/artifacts/zhl7ugsb_Imagem%20do%20WhatsApp%20de%202025-12-06%20%C3%A0%28s%29%2020.39.39_8a1e90f0.png" 
+                  alt="XAB Distribuidora - Sistema de Cotação de Preços"
+                  className="header-logo-img"
+                />
+              </div>
+            </header>
+          )}
 
           <div className="main-content">
             <Routes>
