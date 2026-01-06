@@ -160,7 +160,6 @@ Exemplo: 1570.THINER 5 LITROS FARBEN"
               value={itemNames}
               onChange={(e) => setItemNames(e.target.value)}
               onFocus={() => setIsSearchFocused(true)}
-              onBlur={() => setIsSearchFocused(false)}
               className="search-textarea auto-resize"
               rows={1}
               data-testid="item-names-textarea"
